@@ -1,0 +1,79 @@
+# =========================
+# Common temporary files
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# =========================
+# VS Code
+# Keep common team settings if you decide to add them later.
+# =========================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# =========================
+# CMake
+# =========================
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+
+# =========================
+# STM32CubeMX / STM32 CMake projects
+# =========================
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.o
+*.obj
+*.d
+*.a
+*.lib
+
+# Keep STM32CubeMX configuration files.
+!*.ioc
+
+# =========================
+# TI Code Composer Studio / Eclipse
+# =========================
+.metadata/
+.settings/
+Debug/
+Release/
+target/
+
+*.launch
+*.out
+*.pp
+*.mk
+*.opt
+*.cmd.genlibs
+*.stackdump
+
+# Keep CCS project metadata.
+!.project
+!.cproject
+!.ccsproject
+
+# =========================
+# Archived results
+# Files placed under result/ are intentional records, such as
+# firmware releases, test data, screenshots, and reports.
+# =========================
+!**/result/
+!**/result/**
