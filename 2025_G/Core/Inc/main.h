@@ -75,9 +75,9 @@ void Error_Handler(void);
 #define D7_GPIO_Port GPIOA
 #define CLK_Pin GPIO_PIN_8
 #define CLK_GPIO_Port GPIOA
-#define FQ_Pin GPIO_PIN_9
+#define FQ_Pin GPIO_PIN_11
 #define FQ_GPIO_Port GPIOA
-#define RST_Pin GPIO_PIN_10
+#define RST_Pin GPIO_PIN_12
 #define RST_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */

@@ -43,6 +43,18 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add sources to executable
+file(GLOB APP_SOURCES CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Src/*.c
+)
+
+add_library(app OBJECT ${APP_SOURCES})
+target_include_directories(app PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Inc
+)
+target_link_libraries(app PUBLIC
+    stm32cubemx
+)
+
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
 )
@@ -63,6 +75,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
+    app
 
     # Add user defined libraries
 )
