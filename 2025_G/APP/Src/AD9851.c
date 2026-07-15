@@ -1,7 +1,12 @@
 #include "AD9851.h"
 #include "main.h"
 #include "stm32g4xx_hal_gpio.h"
+#include "stm32g4xx_hal_tim.h"
+#include "tim.h"
 #include <stdint.h>
+#include <sys/_intsup.h>
+
+AD9851_SWEEP_t ad9851_sweep;
 
 void AD9851_Write_Byte(uint8_t word){
     uint32_t odr = GPIOA->ODR;
@@ -32,7 +37,41 @@ void AD9851_set_Frequency(uint32_t frequency){
     AD9851_FQ_Pulse();
 }
 
-const uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT] = {
+void AD9851_Sweepstart(uint32_t *freq_table, uint16_t length){
+    if(freq_table == NULL || length==0){
+        return;
+    }
+    ad9851_sweep.freq_table = freq_table;
+    ad9851_sweep.length = length;
+    ad9851_sweep.index = 0;
+    ad9851_sweep.isrunningflag=1;
+
+    HAL_TIM_Base_Start_IT(&htim3);
+    AD9851_set_Frequency(ad9851_sweep.freq_table[ad9851_sweep.index]);
+}
+
+void AD9851_SweepCallback(void){
+    if(!ad9851_sweep.isrunningflag){
+        return;
+    }
+    ad9851_sweep.index++;
+    if(ad9851_sweep.index>=ad9851_sweep.length){
+        ad9851_sweep.index=0;
+    }
+    if (ad9851_sweep.index >= ad9851_sweep.length) {
+        AD9851_SweepStop();
+        return;
+    }
+    AD9851_set_Frequency(ad9851_sweep.freq_table[ad9851_sweep.index]);
+}
+
+void AD9851_SweepStop(void){
+    ad9851_sweep.isrunningflag = 0;
+    HAL_TIM_Base_Stop_IT(&htim3);
+}
+
+
+uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT] = {
     1000U, 1015U, 1029U, 1044U, 1059U, 1075U, 1091U, 1106U,
     1122U, 1139U, 1155U, 1172U, 1189U, 1207U, 1224U, 1242U,
     1260U, 1278U, 1297U, 1316U, 1335U, 1354U, 1374U, 1394U,

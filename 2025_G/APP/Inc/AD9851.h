@@ -11,9 +11,17 @@ void AD9851_Write_Byte(uint8_t word);
 void AD9851_RESET(void);
 void AD9851_FQ_Pulse(void);
 void AD9851_set_Frequency(uint32_t frequency);
-void AD9851_SweepFreq(uint32_t f_start,uint32_t f_end);
+void AD9851_Sweepstart(uint32_t* freq_table,uint16_t length);
+void AD9851_SweepCallback(void);
+void AD9851_SweepStop(void);
 
 
-extern const uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT];
+extern uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT];
+typedef struct{
+    uint32_t* freq_table;
+    uint16_t length;
+    uint16_t index;
+    uint8_t isrunningflag;
+}AD9851_SWEEP_t;
 
 #endif
