@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #define AD9851_SYSCLK 180000000U
-#define AD9851_SWEEP_FREQ_COUNT 416U
+#define AD9851_SWEEP_FREQ_COUNT 432U
 
 void AD9851_Write_Byte(uint8_t word);
 void AD9851_RESET(void);
@@ -23,5 +23,8 @@ typedef struct{
     uint16_t index;
     uint8_t isrunningflag;
 }AD9851_SWEEP_t;
+
+
+extern AD9851_SWEEP_t ad9851_sweep;
 
 #endif

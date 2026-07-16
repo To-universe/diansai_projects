@@ -58,27 +58,27 @@ void Error_Handler(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define D0_Pin GPIO_PIN_0
-#define D0_GPIO_Port GPIOA
+#define D0_GPIO_Port GPIOB
 #define D1_Pin GPIO_PIN_1
-#define D1_GPIO_Port GPIOA
+#define D1_GPIO_Port GPIOB
 #define D2_Pin GPIO_PIN_2
-#define D2_GPIO_Port GPIOA
-#define D3_Pin GPIO_PIN_3
-#define D3_GPIO_Port GPIOA
-#define D4_Pin GPIO_PIN_4
-#define D4_GPIO_Port GPIOA
-#define D5_Pin GPIO_PIN_5
-#define D5_GPIO_Port GPIOA
-#define D6_Pin GPIO_PIN_6
-#define D6_GPIO_Port GPIOA
-#define D7_Pin GPIO_PIN_7
-#define D7_GPIO_Port GPIOA
+#define D2_GPIO_Port GPIOB
 #define CLK_Pin GPIO_PIN_8
 #define CLK_GPIO_Port GPIOA
 #define FQ_Pin GPIO_PIN_11
 #define FQ_GPIO_Port GPIOA
 #define RST_Pin GPIO_PIN_12
 #define RST_GPIO_Port GPIOA
+#define D3_Pin GPIO_PIN_3
+#define D3_GPIO_Port GPIOB
+#define D4_Pin GPIO_PIN_4
+#define D4_GPIO_Port GPIOB
+#define D5_Pin GPIO_PIN_5
+#define D5_GPIO_Port GPIOB
+#define D6_Pin GPIO_PIN_6
+#define D6_GPIO_Port GPIOB
+#define D7_Pin GPIO_PIN_7
+#define D7_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

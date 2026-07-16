@@ -3,6 +3,9 @@
 
 #include "main.h"
 #include "gpio.h"
+#include "arm_math.h"
+#include "AD9851.h"
+#include "ADC.h"
 
 void app_main(void);
 

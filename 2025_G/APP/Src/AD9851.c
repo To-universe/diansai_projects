@@ -1,5 +1,6 @@
 #include "AD9851.h"
 #include "main.h"
+#include "stm32g474xx.h"
 #include "stm32g4xx_hal_gpio.h"
 #include "stm32g4xx_hal_tim.h"
 #include "tim.h"
@@ -8,10 +9,12 @@
 
 AD9851_SWEEP_t ad9851_sweep;
 
+uint8_t SF_count=0;
+
 void AD9851_Write_Byte(uint8_t word){
-    uint32_t odr = GPIOA->ODR;
+    uint32_t odr = GPIOB->ODR;
     odr = (odr & ~0x00FFu) | word;
-    GPIOA->ODR = odr;
+    GPIOB->ODR = odr;
 
     CLK_GPIO_Port->BSRR = CLK_Pin;
     CLK_GPIO_Port->BRR = CLK_Pin;
@@ -54,15 +57,17 @@ void AD9851_SweepCallback(void){
     if(!ad9851_sweep.isrunningflag){
         return;
     }
+    
     ad9851_sweep.index++;
-    if(ad9851_sweep.index>=ad9851_sweep.length){
-        ad9851_sweep.index=0;
-    }
+    // if(ad9851_sweep.index>=ad9851_sweep.length){
+    //     ad9851_sweep.index=0;
+    // }
     if (ad9851_sweep.index >= ad9851_sweep.length) {
         AD9851_SweepStop();
         return;
     }
     AD9851_set_Frequency(ad9851_sweep.freq_table[ad9851_sweep.index]);
+
 }
 
 void AD9851_SweepStop(void){
@@ -123,6 +128,7 @@ uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT] = {
     256000U, 259724U, 263501U, 267334U, 271223U, 275168U, 279170U, 283231U,
     287350U, 291530U, 295770U, 300072U, 304437U, 308865U, 313358U, 317916U,
     322540U, 327231U, 331991U, 336820U, 341719U, 346689U, 351732U, 356848U,
-    362039U, 367305U, 372647U, 378067U, 383567U, 389146U, 394806U, 400000U
+    362039U, 367305U, 372647U, 378067U, 383567U, 389146U, 394806U, 400549U,
+    406375U, 412286U, 418282U, 424366U, 430539U, 436801U, 443155U, 449601U,
+    456140U, 462775U, 469506U, 476335U, 483264U, 490293U, 497424U, 500000U
 };
-

@@ -55,6 +55,40 @@ target_link_libraries(app PUBLIC
     stm32cubemx
 )
 
+set(CMSIS_DSP_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Drivers/CMSIS/DSP)
+if(EXISTS ${CMSIS_DSP_ROOT}/Source)
+    file(GLOB_RECURSE CMSIS_DSP_SOURCES CONFIGURE_DEPENDS
+        ${CMSIS_DSP_ROOT}/Source/*.c
+    )
+    list(FILTER CMSIS_DSP_SOURCES INCLUDE REGEX ".*/arm_.*\\.c$")
+    list(FILTER CMSIS_DSP_SOURCES EXCLUDE REGEX ".*[Ff]16.*\\.c$")
+    list(FILTER CMSIS_DSP_SOURCES EXCLUDE REGEX ".*[Ff]64.*\\.c$")
+    list(FILTER CMSIS_DSP_SOURCES EXCLUDE REGEX ".*[Nn][Ee][Oo][Nn].*\\.c$")
+    list(FILTER CMSIS_DSP_SOURCES EXCLUDE REGEX ".*[Mm][Vv][Ee].*\\.c$")
+    list(FILTER CMSIS_DSP_SOURCES EXCLUDE REGEX ".*/_.*\\.c$")
+
+    add_library(cmsis_dsp OBJECT ${CMSIS_DSP_SOURCES})
+    target_include_directories(cmsis_dsp PUBLIC
+        ${CMSIS_DSP_ROOT}/Include
+        ${CMSIS_DSP_ROOT}/PrivateInclude
+    )
+    target_compile_definitions(cmsis_dsp PUBLIC
+        ARM_MATH_CM4
+        ARM_MATH_LOOPUNROLL
+    )
+    target_link_libraries(cmsis_dsp PUBLIC
+        stm32cubemx
+    )
+else()
+    message(WARNING "CMSIS-DSP source directory not found: ${CMSIS_DSP_ROOT}/Source")
+endif()
+
+if(TARGET cmsis_dsp)
+    target_link_libraries(app PUBLIC
+        cmsis_dsp
+    )
+endif()
+
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
 )
@@ -76,6 +110,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     app
+    $<$<TARGET_EXISTS:cmsis_dsp>:cmsis_dsp>
 
     # Add user defined libraries
 )
