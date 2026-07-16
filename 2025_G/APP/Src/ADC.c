@@ -14,21 +14,28 @@
 uint16_t adc_buffer[FFT_SIZE];
 q15_t fft_input[FFT_SIZE];
 q15_t fft_output[FFT_SIZE*2];
-q15_t amp_response[AD9851_SWEEP_FREQ_COUNT];
+uint32_t amp_response[AD9851_SWEEP_FREQ_COUNT];
 
-uint8_t adc_wait_flag=0;
-uint32_t stable_tick=0;
-uint32_t now_tick=0;
-uint8_t adc_ready=0;
+volatile uint8_t adc_wait_flag=0;
+volatile uint32_t stable_tick=0;
+volatile uint32_t now_tick=0;
+volatile uint8_t adc_ready=0;
+volatile uint8_t adc_sampling=0;
 
 arm_rfft_instance_q15 fft_instance;
 
 void ADC_wait_stable(void){
-    adc_wait_flag=1;
-    stable_tick = HAL_GetTick();
+    if(!adc_wait_flag && !adc_sampling){
+        adc_wait_flag=1;
+        stable_tick = HAL_GetTick();
+    }
 }
 
 void ADC_sample_start(void){
+    if(adc_sampling){
+        return;
+    }
+    adc_sampling=1;
     HAL_TIM_Base_Stop(&htim2);
     __HAL_TIM_SET_COUNTER(&htim2,0);
     HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffer, FFT_SIZE);
@@ -39,6 +46,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
     if(hadc->Instance == ADC1){
         HAL_TIM_Base_Stop(&htim2);
         HAL_ADC_Stop_DMA(&hadc1);
+        adc_sampling=0;
         adc_ready=1;
     }
 }
@@ -70,24 +78,30 @@ void fft_calc(void){
     arm_rfft_q15(&fft_instance, fft_input, fft_output);
 }
 
-q15_t fft_amp_calc(uint16_t index){
-    q15_t real = fft_output[2*index];
-    q15_t image = fft_output[2*index+1];
+uint32_t fft_amp_calc(uint16_t index){
+    int32_t real = fft_output[2*index];
+    int32_t image = fft_output[2*index+1];
     return real*real+image*image;
 }
 
 void response_calc(uint16_t index, uint32_t freq){
-    uint16_t bin =   (((uint64_t)freq)<<13)/(float32_t)sample_rate;
+    uint16_t bin = (uint16_t)((((uint64_t)freq * FFT_SIZE) + (sample_rate / 2U)) / sample_rate);
+    uint16_t max_valid_bin = (FFT_SIZE / 2U) - 1U;
 
-    uint16_t start = bin-2 >= 1 ? bin-2 : 1;
-    uint16_t end = (bin+2) < FFT_SIZE ? bin+2 : FFT_SIZE-1;
+    if(bin < 1U){
+        bin = 1U;
+    }else if(bin > max_valid_bin){
+        bin = max_valid_bin;
+    }
 
-    q15_t max_amp =fft_amp_calc(start);
-    uint16_t max_bin = start;
+    uint16_t start = bin > 2U ? bin - 2U : 1U;
+    uint16_t end = (bin + 2U) < max_valid_bin ? bin + 2U : max_valid_bin;
+
+    uint32_t max_amp = fft_amp_calc(start);
     for(uint16_t i = start+1;i<=end;i++){
-        if(fft_amp_calc(i)>max_amp){
-            max_amp = fft_amp_calc(i);
-            max_bin=i;
+        uint32_t amp = fft_amp_calc(i);
+        if(amp > max_amp){
+            max_amp = amp;
         }
     }
     amp_response[index]=max_amp;

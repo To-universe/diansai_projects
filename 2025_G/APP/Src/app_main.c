@@ -13,6 +13,7 @@ void app_main(void){
     AD9851_RESET();
     // AD9851_set_Frequency(100);
     AD9851_Sweepstart(SweepFreq_value, AD9851_SWEEP_FREQ_COUNT);
+    ADC_wait_stable();
     arm_rfft_init_8192_q15(&fft_instance, 0U, 1U);
     
     while(1){
@@ -37,6 +38,8 @@ void app_main(void){
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
     if(htim->Instance == TIM3){
         AD9851_SweepCallback();
-        ADC_wait_stable();
+        if(ad9851_sweep.isrunningflag){
+            ADC_wait_stable();
+        }
     }
 }

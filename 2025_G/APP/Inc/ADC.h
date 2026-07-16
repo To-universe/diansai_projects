@@ -9,13 +9,14 @@
 #define ADC_BUFFER_SIZE FFT_SIZE*2
 #define sample_rate 1000000
 
-extern uint8_t adc_wait_flag;
-extern uint32_t stable_tick;
-extern uint32_t now_tick;
-extern uint8_t adc_ready;
+extern volatile uint8_t adc_wait_flag;
+extern volatile uint32_t stable_tick;
+extern volatile uint32_t now_tick;
+extern volatile uint8_t adc_ready;
+extern volatile uint8_t adc_sampling;
 extern const q15_t hanning_window[FFT_SIZE];
 extern arm_rfft_instance_q15 fft_instance;
-extern q15_t amp_response[];
+extern uint32_t amp_response[];
 
 void ADC_wait_stable(void);
 void ADC_sample_start(void);
