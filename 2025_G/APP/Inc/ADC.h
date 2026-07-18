@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define FFT_SIZE 8192
-#define ADC_BUFFER_SIZE FFT_SIZE*2
+#define ADC_BUFFER_SIZE_1 FFT_SIZE*2
 #define sample_rate 1000000
 
 extern volatile uint8_t adc_wait_flag;

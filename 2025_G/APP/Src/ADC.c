@@ -11,7 +11,7 @@
 #include "tim.h"
 #include <stdint.h>
 
-uint16_t adc_buffer[FFT_SIZE];
+uint16_t adc_buffer_1[FFT_SIZE];
 q15_t fft_input[FFT_SIZE];
 q15_t fft_output[FFT_SIZE*2];
 uint32_t amp_response[AD9851_SWEEP_FREQ_COUNT];
@@ -38,11 +38,11 @@ void ADC_sample_start(void){
     adc_sampling=1;
     HAL_TIM_Base_Stop(&htim2);
     __HAL_TIM_SET_COUNTER(&htim2,0);
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buffer, FFT_SIZE);
+    HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t *)adc_buffer.u16, ADC_BUFFER_SIZE);
     HAL_TIM_Base_Start(&htim2);
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
+void ADC_Legacy_ConvCpltCallback(ADC_HandleTypeDef *hadc){
     if(hadc->Instance == ADC1){
         HAL_TIM_Base_Stop(&htim2);
         HAL_ADC_Stop_DMA(&hadc1);
@@ -54,11 +54,11 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc){
 void adc_to_q15(void){
     uint32_t sum = 0;
     for(uint16_t i = 0;i<FFT_SIZE;i++){
-        sum += adc_buffer[i];
+        sum += adc_buffer_1[i];
     }
     int32_t mean = (int32_t)(sum/FFT_SIZE);
     for(uint16_t i = 0; i<FFT_SIZE;i++){
-        int32_t centered = (int32_t)adc_buffer[i]-mean;
+        int32_t centered = (int32_t)adc_buffer_1[i]-mean;
         int32_t q15_value = centered <<4;
         if(q15_value>32767){
             q15_value=32767;
