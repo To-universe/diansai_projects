@@ -358,6 +358,44 @@ void LCD_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t
     }
 }
 
+static uint16_t LCD_GrayToRgb565(uint8_t gray)
+{
+    return (uint16_t)(((uint16_t)(gray & 0xF8U) << 8)
+                    | ((uint16_t)(gray & 0xFCU) << 3)
+                    | ((uint16_t)gray >> 3));
+}
+
+void LCD_PrepareFrame(const uint8_t *gray_pixels)
+{
+    const uint16_t src_w = 48U;
+    const uint16_t src_h = 36U;
+    const uint16_t scale = 3U;
+    const uint16_t dst_x = 48U;
+    const uint16_t dst_y = 10U;
+
+    if (gray_pixels == 0) {
+        return;
+    }
+
+    LCD_SetWindow(dst_x, dst_y, src_w * scale, src_h * scale);
+
+    for (uint16_t y = 0; y < src_h; y++) {
+        for (uint16_t sy = 0; sy < scale; sy++) {
+            for (uint16_t x = 0; x < src_w; x++) {
+                uint16_t color = LCD_GrayToRgb565(gray_pixels[y * src_w + x]);
+
+                for (uint16_t sx = 0; sx < scale; sx++) {
+                    LCD_DATA = color;
+                }
+            }
+        }
+    }
+}
+
+void LCD_FlushFrame(void)
+{
+}
+
 /* ======================== 字符显示 ======================== */
 
 void LCD_SetTextColor(uint16_t color)

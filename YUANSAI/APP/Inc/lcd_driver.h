@@ -57,6 +57,8 @@ void     LCD_FillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t c
 void     LCD_Clear(uint16_t color);
 
 void     LCD_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels);
+void     LCD_PrepareFrame(const uint8_t *gray_pixels);
+void     LCD_FlushFrame(void);
 
 void     LCD_SetTextColor(uint16_t color);
 void     LCD_SetBackColor(uint16_t color);
