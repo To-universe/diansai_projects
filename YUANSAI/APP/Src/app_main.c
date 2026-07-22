@@ -32,10 +32,13 @@ int app_main(void)
                 float abs_e, rel_e;
                 entropy_calc_all(gray_pic, &abs_e, &rel_e);
                 float edge_e = edge_energy_calc(gray_pic);
+                LCD_SetBackColor(WHITE); LCD_SetTextColor(BLACK);
+                char ebuf[16]; sprintf(ebuf, "E:%lu   ", (uint32_t)edge_e);
+
 
                 LCD_SetBackColor(WHITE); LCD_SetTextColor(BLACK);
 
-                EyeDetect_Update(abs_e);//计算熵值
+                EyeDetect_Update(abs_e, edge_e);//计算熵值
                 real_e = 0.8*real_e + 0.2*abs_e;
                 LCD_UpdateEntropy(real_e, rel_e);        //显示熵值
                 LCD_PrepareFrame(gray_pic);             //准备帧缓冲
