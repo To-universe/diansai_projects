@@ -1,44 +1,35 @@
-#include "app_main.h"
-#include "receive_pic.h"
-#include "stm32f1xx_hal_uart.h"
-#include "tjpgd.h"
-#include "pic_decode.h"
-#include <stdint.h>
+﻿#include "app_main.h"
 #include "lcd_driver.h"
-#include "stdio.h"
-#include "usart.h"
+#include "receive_pic.h"
+#include "pic_decode.h"
 
-
-int app_main(void){
-    const uint8_t *jpg_data = 0;
-    uint16_t jpg_len = 0;
+int app_main(void)
+{
     uint8_t gray_pic[PIC_SIZE];
+    const uint8_t *jpg_data;
+    uint16_t jpg_len;
 
     receive_pic_init();
-
-
     LCD_Init();
-    LCD_ShowDefault();   /* draws UI */
-
-    LCD_FlushFrame();
+    LCD_ShowDefault();
 
     while (1) {
         receive_pic_poll();
+
         if (receive_pic_is_frame_ready()) {
             jpg_data = receive_pic_get_frame_data();
-            jpg_len = receive_pic_get_frame_len();
+            jpg_len  = receive_pic_get_frame_len();
 
-            if(decode_data(jpg_data, jpg_len, gray_pic)==JDR_OK){
-                //此处计算熵
-                
-                //此处调用屏显
+            if (decode_data(jpg_data, jpg_len, gray_pic) == JDR_OK) {
                 LCD_PrepareFrame(gray_pic);
-
+                LCD_FlushFrame();
             }
-
+            
             receive_pic_release_frame();
         }
-        LCD_FlushFrame();
+
+        HAL_GPIO_TogglePin(LCD_BL_GPIO_Port, LCD_BL_Pin);
+        HAL_Delay(1);
     }
     return 0;
 }

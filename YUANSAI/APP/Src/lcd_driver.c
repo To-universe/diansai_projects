@@ -358,44 +358,6 @@ void LCD_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t
     }
 }
 
-static uint16_t LCD_GrayToRgb565(uint8_t gray)
-{
-    return (uint16_t)(((uint16_t)(gray & 0xF8U) << 8)
-                    | ((uint16_t)(gray & 0xFCU) << 3)
-                    | ((uint16_t)gray >> 3));
-}
-
-void LCD_PrepareFrame(const uint8_t *gray_pixels)
-{
-    const uint16_t src_w = 48U;
-    const uint16_t src_h = 36U;
-    const uint16_t scale = 3U;
-    const uint16_t dst_x = 48U;
-    const uint16_t dst_y = 10U;
-
-    if (gray_pixels == 0) {
-        return;
-    }
-
-    LCD_SetWindow(dst_x, dst_y, src_w * scale, src_h * scale);
-
-    for (uint16_t y = 0; y < src_h; y++) {
-        for (uint16_t sy = 0; sy < scale; sy++) {
-            for (uint16_t x = 0; x < src_w; x++) {
-                uint16_t color = LCD_GrayToRgb565(gray_pixels[y * src_w + x]);
-
-                for (uint16_t sx = 0; sx < scale; sx++) {
-                    LCD_DATA = color;
-                }
-            }
-        }
-    }
-}
-
-void LCD_FlushFrame(void)
-{
-}
-
 /* ======================== 字符显示 ======================== */
 
 void LCD_SetTextColor(uint16_t color)
@@ -481,4 +443,29 @@ void LCD_ShowDefault(void)
     LCD_ShowString(152, 160, "0.00 %");
     LCD_ShowString(8, 185, "Frame Rate:");
     LCD_ShowString(152, 185, "0.0 fps");
+}
+
+/* ======================== Frame Buffer ======================== */
+
+static uint16_t framebuf[IMG_W * IMG_H];
+
+void LCD_PrepareFrame(const uint8_t *gray_data)
+{
+    for (uint32_t y = 0; y < IMG_H; y++) {
+        uint32_t sy = y / 3;
+        const uint8_t *src = gray_data + sy * SRC_W;
+        uint16_t *dst = framebuf + y * IMG_W;
+        for (uint32_t x = 0; x < IMG_W; x++) {
+            uint8_t g = src[x / 3];
+            dst[x] = (uint16_t)(((g >> 3) << 11) | ((g >> 2) << 5) | (g >> 3));
+        }
+    }
+}
+
+void LCD_FlushFrame(void)
+{
+    LCD_SetWindow(IMG_X, IMG_Y, IMG_W, IMG_H);
+    uint32_t total = (uint32_t)IMG_W * IMG_H;
+    for (uint32_t i = 0; i < total; i++)
+        LCD_DATA = framebuf[i];
 }
