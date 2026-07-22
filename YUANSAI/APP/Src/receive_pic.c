@@ -7,7 +7,9 @@ typedef enum {
 } JpgRxState;
 
 static uint8_t rx_dma_buf[JPG_RX_DMA_LEN];
-static uint8_t jpg_buf[JPG_MAX_LEN];
+static uint8_t jpg_buffers[2][JPG_MAX_LEN];
+static uint8_t rx_buf_index;
+static uint8_t ready_buf_index;
 
 static volatile uint8_t frame_ready;
 static uint16_t rx_read_pos;
@@ -22,17 +24,17 @@ static void receive_pic_parser_reset(void)
     rx_state = JPG_WAIT_START;
 }
 
+static void receive_pic_swap_rx_buffer(void)
+{
+    rx_buf_index ^= 1U;
+}
+
 static void receive_pic_parse_byte(uint8_t byte)
 {
-    if (frame_ready != 0U) {
-        last_byte = byte;
-        return;
-    }
-
     if (rx_state == JPG_WAIT_START) {
         if ((last_byte == JPG_MARK) && (byte == JPG_START)) {
-            jpg_buf[0] = JPG_MARK;
-            jpg_buf[1] = JPG_START;
+            jpg_buffers[rx_buf_index][0] = JPG_MARK;
+            jpg_buffers[rx_buf_index][1] = JPG_START;
             jpg_len = 2U;
             rx_state = JPG_RECEIVING;
         }
@@ -47,12 +49,17 @@ static void receive_pic_parse_byte(uint8_t byte)
         return;
     }
 
-    jpg_buf[jpg_len] = byte;
+    jpg_buffers[rx_buf_index][jpg_len] = byte;
     jpg_len++;
 
     if ((last_byte == JPG_MARK) && (byte == JPG_END)) {
-        ready_len = jpg_len;
-        frame_ready = 1U;
+        if (frame_ready == 0U) {
+            ready_len = jpg_len;
+            ready_buf_index = rx_buf_index;
+            frame_ready = 1U;
+            receive_pic_swap_rx_buffer();
+        }
+
         receive_pic_parser_reset();
     }
 
@@ -62,6 +69,8 @@ static void receive_pic_parse_byte(uint8_t byte)
 ReceivePicStatus receive_pic_init(void)
 {
     rx_read_pos = 0;
+    rx_buf_index = 0;
+    ready_buf_index = 0;
     frame_ready = 0;
     ready_len = 0;
     last_byte = 0;
@@ -112,7 +121,7 @@ const uint8_t *receive_pic_get_frame_data(void)
         return 0;
     }
 
-    return jpg_buf;
+    return jpg_buffers[ready_buf_index];
 }
 
 uint16_t receive_pic_get_frame_len(void)
