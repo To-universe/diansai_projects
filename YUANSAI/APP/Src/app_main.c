@@ -3,6 +3,8 @@
 #include "tjpgd.h"
 #include "pic_decode.h"
 #include <stdint.h>
+#include "lcd_driver.h"
+
 
 int app_main(void){
     const uint8_t *jpg_data = 0;
@@ -10,6 +12,11 @@ int app_main(void){
     uint8_t gray_pic[PIC_SIZE];
 
     receive_pic_init();
+
+
+    LCD_Init();
+    LCD_ShowDefault();   /* draws UI */
+
 
     while (1) {
         receive_pic_poll();
@@ -29,4 +36,6 @@ int app_main(void){
             receive_pic_release_frame();
         }
     }
+    return 0;
 }
+
