@@ -1,4 +1,4 @@
-#ifndef __LCD_DRIVER_H
+﻿#ifndef __LCD_DRIVER_H
 #define __LCD_DRIVER_H
 
 #include <stdint.h>
@@ -34,7 +34,6 @@ typedef struct {
     uint16_t Height;
 } sFONT;
 
-extern sFONT Font8x16;
 
 /* ======================== Low-level FSMC ======================== */
 void     LCD_WriteCmd(uint8_t cmd);

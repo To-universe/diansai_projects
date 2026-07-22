@@ -1,4 +1,4 @@
-#include "app_main.h"
+﻿#include "app_main.h"
 #include "lcd_driver.h"
 
 int app_main(void)
