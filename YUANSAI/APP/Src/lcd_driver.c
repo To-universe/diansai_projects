@@ -10,6 +10,7 @@
 
 #include "lcd_driver.h"
 #include <string.h>
+#include <stdio.h>
 
 /* ======================== 8x16 ASCII font ======================== */
 static const uint8_t font8x16_table[][16] = {
@@ -251,8 +252,66 @@ void LCD_ShowString(uint16_t x, uint16_t y, const char *str)
 
 /* ======================== Backlight ======================== */
 
-void LCD_BackLight_On(void)  { HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_SET); }
+void LCD_BackLight_On(void)  { HAL_GPIO_TogglePin(LCD_BL_GPIO_Port, LCD_BL_Pin); }
 void LCD_BackLight_Off(void) { HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_RESET); }
+
+
+/* ======================== Frame Buffer ======================== */
+
+static uint16_t framebuf[IMG_W * IMG_H];
+
+/* Convert 48x36 grayscale array to 144x108 RGB565 framebuf (3x nearest-neighbor) */
+void LCD_PrepareFrame(const uint8_t *gray_data)
+{
+    for (uint32_t y = 0; y < IMG_H; y++) {
+        uint32_t sy = y / 3;
+        const uint8_t *src = gray_data + sy * SRC_W;
+        uint16_t *dst = framebuf + y * IMG_W;
+
+        for (uint32_t x = 0; x < IMG_W; x++) {
+            uint8_t g = src[x / 3];
+            uint8_t r = g >> 3;
+            uint8_t gr = g >> 2;
+            uint8_t b = g >> 3;
+            dst[x] = (uint16_t)((r << 11) | (gr << 5) | b);
+        }
+    }
+}
+
+/* Flush framebuf to screen in one burst */
+void LCD_FlushFrame(void)
+{
+    LCD_SetWindow(IMG_X, IMG_Y, IMG_W, IMG_H);
+    uint32_t total = (uint32_t)IMG_W * IMG_H;
+    for (uint32_t i = 0; i < total; i++) {
+        LCD_DATA = framebuf[i];
+    }
+}
+
+
+/* ======================== FPS ======================== */
+
+static uint32_t fps_frame_cnt = 0;
+static uint32_t fps_last_tick = 0;
+
+void LCD_TickFPS(void)
+{
+    char buf[16];
+    fps_frame_cnt++;
+    uint32_t now = HAL_GetTick();
+    uint32_t elapsed = now - fps_last_tick;
+    if (elapsed >= 1000) {
+        uint32_t fps_x10 = (fps_frame_cnt * 10000U) / elapsed;
+        sprintf(buf, "%lu.%lu fps", fps_x10 / 10, fps_x10 % 10);
+        fps_frame_cnt = 0;
+        fps_last_tick = now;
+
+        LCD_SetTextColor(BLACK);
+        LCD_SetBackColor(WHITE);
+        LCD_FillRect(152, 185, 80, 16, WHITE);
+        LCD_ShowString(152, 185, buf);
+    }
+}
 
 /* ======================== Default UI ======================== */
 
@@ -261,23 +320,38 @@ void LCD_ShowDefault(void)
     LCD_BackLight_On();
     LCD_FillRect(0, 0, 240, 320, WHITE);
 
-    /* Image area border */
-    LCD_FillRect(8, 8, 224, 2, BLACK);
-    LCD_FillRect(8, 174, 224, 2, BLACK);
-    LCD_FillRect(8, 8, 2, 168, BLACK);
-    LCD_FillRect(230, 8, 2, 168, BLACK);
+    /* Image area border 144x108 */
+    LCD_FillRect(46, 8, 148, 2, BLACK);   /* top */
+    LCD_FillRect(46, 118, 148, 2, BLACK); /* bottom */
+    LCD_FillRect(46, 8, 2, 112, BLACK);   /* left */
+    LCD_FillRect(192, 8, 2, 112, BLACK);  /* right */
 
     /* Info text */
     LCD_SetTextColor(BLACK);
     LCD_SetBackColor(WHITE);
-    LCD_ShowString(8, 192, "Absolute Entropy:");
-    LCD_ShowString(152, 192, "0.00 bit");
-    LCD_ShowString(8, 216, "Relative Entropy:");
-    LCD_ShowString(152, 216, "0.00 %");
-    LCD_ShowString(8, 240, "Frame Rate:");
-    LCD_ShowString(152, 240, "0.0 fps");
+    LCD_ShowString(8, 135, "Absolute Entropy:");
+    LCD_ShowString(152, 135, "0.00 bit");
+    LCD_ShowString(8, 160, "Relative Entropy:");
+    LCD_ShowString(152, 160, "0.00 %");
+    LCD_ShowString(8, 185, "Frame Rate:");
+    LCD_ShowString(152, 185, "0.0 fps");
+
+    /* Static test gradient, generated once */
+    static uint8_t test_gray[SRC_W * SRC_H];
+    static int inited = 0;
+    if (!inited) {
+        for (uint32_t yy = 0; yy < SRC_H; yy++)
+            for (uint32_t xx = 0; xx < SRC_W; xx++)
+                test_gray[yy * SRC_W + xx] = (uint8_t)(xx * 255U / (SRC_W - 1));
+        inited = 1;
+    }
 
     while (1) {
+        LCD_PrepareFrame(test_gray);
+        LCD_FlushFrame();
+        LCD_TickFPS();
+
+        /* Try WritePin instead of TogglePin to avoid flicker */
         HAL_GPIO_TogglePin(LCD_BL_GPIO_Port, LCD_BL_Pin);
         HAL_Delay(1);
     }

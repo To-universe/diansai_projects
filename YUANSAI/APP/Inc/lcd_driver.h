@@ -1,4 +1,4 @@
-﻿#ifndef __LCD_DRIVER_H
+#ifndef __LCD_DRIVER_H
 #define __LCD_DRIVER_H
 
 #include <stdint.h>
@@ -7,6 +7,14 @@
 /* ======================== Screen ======================== */
 #define LCD_WIDTH   240
 #define LCD_HEIGHT  320
+
+/* ======================== Image area ======================== */
+#define SRC_W       48
+#define SRC_H       36
+#define IMG_W       (SRC_W * 3)   /* 144 */
+#define IMG_H       (SRC_H * 3)   /* 108 */
+#define IMG_X       48
+#define IMG_Y       10
 
 /* ======================== FSMC addresses ======================== */
 #define FSMC_BANK1_BASE     0x60000000UL
@@ -34,7 +42,6 @@ typedef struct {
     uint16_t Height;
 } sFONT;
 
-
 /* ======================== Low-level FSMC ======================== */
 void     LCD_WriteCmd(uint8_t cmd);
 void     LCD_WriteData(uint16_t data);
@@ -60,6 +67,13 @@ void     LCD_ShowString(uint16_t x, uint16_t y, const char *str);
 /* ======================== Backlight ======================== */
 void     LCD_BackLight_On(void);
 void     LCD_BackLight_Off(void);
+
+/* ======================== Frame buffer ======================== */
+void     LCD_PrepareFrame(const uint8_t *gray_data);
+void     LCD_FlushFrame(void);
+
+/* ======================== FPS ======================== */
+void     LCD_TickFPS(void);
 
 /* ======================== High-level ======================== */
 void     LCD_ShowDefault(void);
