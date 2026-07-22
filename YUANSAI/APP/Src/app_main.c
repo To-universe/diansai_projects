@@ -37,11 +37,8 @@ int app_main(void){
             }
 
             receive_pic_release_frame();
-            uint8_t word[4] = "TXRX"; 
-            HAL_UART_Transmit(&huart1, word, 4, 1000);
         }
         LCD_FlushFrame();
     }
     return 0;
 }
-
