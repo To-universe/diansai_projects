@@ -11,6 +11,7 @@
  */
 
 #include "lcd_driver.h"
+#include <stdio.h>
 #include <string.h>
 
 /* ======================== 8x16 ASCII 字库 ======================== */
@@ -411,12 +412,12 @@ void LCD_ShowString(uint16_t x, uint16_t y, const char *str)
 
 /* ======================== 背光控制 ======================== */
 
-void LCD_BackLight_On(void)
+void LCD_BackLight_Off(void)
 {
     HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_SET);
 }
 
-void LCD_BackLight_Off(void)
+void LCD_BackLight_On(void)
 {
     HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_RESET);
 }
@@ -425,16 +426,12 @@ void LCD_BackLight_Off(void)
 
 void LCD_ShowDefault(void)
 {
-    LCD_BackLight_On();
+    // LCD_BackLight_On();
     LCD_FillRect(0, 0, 240, 320, WHITE);
-
-    /* Image area border 144x108 */
-    LCD_FillRect(46, 8, 148, 2, BLACK);   /* top */
-    LCD_FillRect(46, 118, 148, 2, BLACK); /* bottom */
-    LCD_FillRect(46, 8, 2, 112, BLACK);   /* left */
-    LCD_FillRect(192, 8, 2, 112, BLACK);  /* right */
-
-    /* Info text */
+    LCD_FillRect(70, 26, 100, 2, BLACK);
+    LCD_FillRect(70, 100, 100, 2, BLACK);
+    LCD_FillRect(70, 26, 2, 76, BLACK);
+    LCD_FillRect(170, 26, 2, 76, BLACK);
     LCD_SetTextColor(BLACK);
     LCD_SetBackColor(WHITE);
     LCD_ShowString(8, 135, "Absolute Entropy:");
@@ -447,15 +444,15 @@ void LCD_ShowDefault(void)
 
 /* ======================== Frame Buffer ======================== */
 
-static uint16_t framebuf[IMG_W * IMG_H];
+static uint16_t framebuf[144 * 108];
 
 void LCD_PrepareFrame(const uint8_t *gray_data)
 {
-    for (uint32_t y = 0; y < IMG_H; y++) {
+    for (uint32_t y = 0; y < 108; y++) {
         uint32_t sy = y / 3;
-        const uint8_t *src = gray_data + sy * SRC_W;
-        uint16_t *dst = framebuf + y * IMG_W;
-        for (uint32_t x = 0; x < IMG_W; x++) {
+        const uint8_t *src = gray_data + sy * 48;
+        uint16_t *dst = framebuf + y * 144;
+        for (uint32_t x = 0; x < 144; x++) {
             uint8_t g = src[x / 3];
             dst[x] = (uint16_t)(((g >> 3) << 11) | ((g >> 2) << 5) | (g >> 3));
         }
@@ -464,8 +461,52 @@ void LCD_PrepareFrame(const uint8_t *gray_data)
 
 void LCD_FlushFrame(void)
 {
-    LCD_SetWindow(IMG_X, IMG_Y, IMG_W, IMG_H);
-    uint32_t total = (uint32_t)IMG_W * IMG_H;
+    LCD_SetWindow(48, 10, 144, 108);
+    uint32_t total = 144 * 108;
     for (uint32_t i = 0; i < total; i++)
         LCD_DATA = framebuf[i];
+}
+
+void LCD_FPSTick(void)
+{
+    static uint32_t last_tick = 0;
+    static uint32_t frame_count = 0;
+
+    frame_count++;
+    uint32_t now = HAL_GetTick();
+    if (now - last_tick >= 1000) {
+        float fps = (float)frame_count * 1000.0f / (now - last_tick);
+        LCD_UpdateFrameRate(fps);
+        frame_count = 0;
+        last_tick = now;
+    }
+}
+
+void LCD_UpdateFrameRate(float fps)
+{
+    char buf[16];
+    uint32_t x10 = (uint32_t)(fps * 10.0f);
+    LCD_SetTextColor(BLACK);
+    LCD_SetBackColor(WHITE);
+    sprintf(buf, "%lu.%lu fps", x10 / 10, x10 % 10);
+    LCD_FillRect(152, 185, 80, 16, WHITE);
+    LCD_ShowString(152, 185, buf);
+}
+
+
+/* ======================== Entropy Display ======================== */
+
+void LCD_UpdateEntropy(float abs_e, float rel_e)
+{
+    char buf[16];
+    LCD_SetTextColor(BLACK);
+    LCD_SetBackColor(WHITE);
+    uint32_t a = (uint32_t)(abs_e * 100.0f + 0.5f);
+    sprintf(buf, "%lu.%02lu bit", a / 100, a % 100);
+    LCD_FillRect(152, 135, 80, 16, WHITE);
+    LCD_ShowString(152, 135, buf);
+    uint32_t r = (uint32_t)(rel_e * 100.0f + 0.5f);
+    sprintf(buf, "%lu.%02lu %%", r / 100, r % 100);
+    LCD_FillRect(152, 160, 80, 16, WHITE);
+    LCD_ShowString(152, 160, buf);
 }

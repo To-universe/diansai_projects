@@ -9,8 +9,8 @@
 #define LCD_HEIGHT  320
 #define SRC_W       48
 #define SRC_H       36
-#define IMG_W       (SRC_W * 3)
-#define IMG_H       (SRC_H * 3)
+#define IMG_W       144
+#define IMG_H       108
 #define IMG_X       48
 #define IMG_Y       10
 
@@ -63,8 +63,6 @@ void     LCD_FillRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t c
 void     LCD_Clear(uint16_t color);
 
 void     LCD_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t *pixels);
-void     LCD_PrepareFrame(const uint8_t *gray_pixels);
-void     LCD_FlushFrame(void);
 
 void     LCD_SetTextColor(uint16_t color);
 void     LCD_SetBackColor(uint16_t color);
@@ -73,13 +71,13 @@ void     LCD_ShowString(uint16_t x, uint16_t y, const char *str);
 
 void     LCD_BackLight_On(void);
 void     LCD_BackLight_Off(void);
-
-/* ======================== Frame buffer ======================== */
+void     LCD_ShowDefault(void);
 void     LCD_PrepareFrame(const uint8_t *gray_data);
 void     LCD_FlushFrame(void);
+void     LCD_UpdateEntropy(float abs_e, float rel_e);
 
-/* ======================== UI ======================== */
-void     LCD_ShowDefault(void);
+void     LCD_FPSTick(void);
+void     LCD_UpdateFrameRate(float fps);
 
 /* ======================== Backward compat wrappers ======================== */
 
