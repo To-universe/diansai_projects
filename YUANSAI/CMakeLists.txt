@@ -43,13 +43,34 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add sources to executable
+file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Src/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Src/*.s
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Src/*.S
+)
+
+file(GLOB_RECURSE APP_HEADERS CONFIGURE_DEPENDS
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Inc/*.h
+)
+
+set(APP_INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/Inc
+)
+
+foreach(APP_HEADER ${APP_HEADERS})
+    get_filename_component(APP_HEADER_DIR ${APP_HEADER} DIRECTORY)
+    list(APPEND APP_INCLUDE_DIRS ${APP_HEADER_DIR})
+endforeach()
+
+list(REMOVE_DUPLICATES APP_INCLUDE_DIRS)
+
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    APP/Src/app_main.c
+    ${APP_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    APP/Inc
+    ${APP_INCLUDE_DIRS}
 )
 
 # Add project symbols (macros)
