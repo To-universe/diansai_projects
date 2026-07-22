@@ -67,12 +67,12 @@ ReceivePicStatus receive_pic_init(void)
     last_byte = 0;
     receive_pic_parser_reset();
 
-    if (HAL_UART_Receive_DMA(&huart1, rx_dma_buf, JPG_RX_DMA_LEN) != HAL_OK) {
+    if (HAL_UART_Receive_DMA(&huart2, rx_dma_buf, JPG_RX_DMA_LEN) != HAL_OK) {
         return RECEIVE_PIC_ERROR;
     }
 
-    if (huart1.hdmarx != 0) {
-        __HAL_DMA_DISABLE_IT(huart1.hdmarx, DMA_IT_HT);
+    if (huart2.hdmarx != 0) {
+        __HAL_DMA_DISABLE_IT(huart2.hdmarx, DMA_IT_HT);
     }
 
     return RECEIVE_PIC_OK;
@@ -82,11 +82,11 @@ void receive_pic_poll(void)
 {
     uint16_t rx_write_pos;
 
-    if (huart1.hdmarx == 0) {
+    if (huart2.hdmarx == 0) {
         return;
     }
 
-    rx_write_pos = (uint16_t)(JPG_RX_DMA_LEN - __HAL_DMA_GET_COUNTER(huart1.hdmarx));
+    rx_write_pos = (uint16_t)(JPG_RX_DMA_LEN - __HAL_DMA_GET_COUNTER(huart2.hdmarx));
     if (rx_write_pos >= JPG_RX_DMA_LEN) {
         rx_write_pos = 0;
     }
