@@ -36,6 +36,11 @@ void entropy_calc_all(uint8_t *gray_pic, float *entropy_abs, float *entropy_rel)
         return;
     }
 
+<<<<<<< HEAD
+    *entropy_abs = entro_a;
+    *entropy_rel = entro_r;
+}
+=======
     counting_gray(gray_pic);
 
     *entropy_abs = entropy_abs_calc();
@@ -262,3 +267,4 @@ const float entropy_count_lut[PIC_SIZE + 1U] = {
     6.663658812e-03f, 5.832397414e-03f, 5.000650896e-03f, 4.168419538e-03f, 3.335703623e-03f, 2.502503431e-03f, 1.668819243e-03f, 8.346513390e-04f,
     -0.000000000e+00f,
 };
+>>>>>>> d80681c8e58fa9d7fbe0b7c63445998c3d1a4529
