@@ -444,3 +444,28 @@ void LCD_ShowDefault(void)
     LCD_ShowString(8, 185, "Frame Rate:");
     LCD_ShowString(152, 185, "0.0 fps");
 }
+
+/* ======================== Frame Buffer ======================== */
+
+static uint16_t framebuf[IMG_W * IMG_H];
+
+void LCD_PrepareFrame(const uint8_t *gray_data)
+{
+    for (uint32_t y = 0; y < IMG_H; y++) {
+        uint32_t sy = y / 3;
+        const uint8_t *src = gray_data + sy * SRC_W;
+        uint16_t *dst = framebuf + y * IMG_W;
+        for (uint32_t x = 0; x < IMG_W; x++) {
+            uint8_t g = src[x / 3];
+            dst[x] = (uint16_t)(((g >> 3) << 11) | ((g >> 2) << 5) | (g >> 3));
+        }
+    }
+}
+
+void LCD_FlushFrame(void)
+{
+    LCD_SetWindow(IMG_X, IMG_Y, IMG_W, IMG_H);
+    uint32_t total = (uint32_t)IMG_W * IMG_H;
+    for (uint32_t i = 0; i < total; i++)
+        LCD_DATA = framebuf[i];
+}

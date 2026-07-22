@@ -7,6 +7,12 @@
 /* ======================== Screen parameters ======================== */
 #define LCD_WIDTH   240
 #define LCD_HEIGHT  320
+#define SRC_W       48
+#define SRC_H       36
+#define IMG_W       (SRC_W * 3)
+#define IMG_H       (SRC_H * 3)
+#define IMG_X       48
+#define IMG_Y       10
 
 /* Backward compat: old names used by bsp_xpt2046_lcd.c */
 #define LCD_X_LENGTH   LCD_HEIGHT
@@ -65,6 +71,10 @@ void     LCD_ShowString(uint16_t x, uint16_t y, const char *str);
 
 void     LCD_BackLight_On(void);
 void     LCD_BackLight_Off(void);
+
+/* ======================== Frame buffer ======================== */
+void     LCD_PrepareFrame(const uint8_t *gray_data);
+void     LCD_FlushFrame(void);
 
 /* ======================== UI ======================== */
 void     LCD_ShowDefault(void);
