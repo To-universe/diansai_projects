@@ -4,6 +4,7 @@
 #include "receive_pic.h"
 #include "pic_decode.h"
 #include "entropy_calc.h"
+#include "eye_detect.h"
 #include "usart.h"
 
 int app_main(void)
@@ -16,6 +17,8 @@ int app_main(void)
     receive_pic_init();
     LCD_Init();
     LCD_ShowDefault();
+    EyeDetect_Init();
+    float real_e;
 
     while (1) {
         receive_pic_poll();
@@ -23,29 +26,27 @@ int app_main(void)
         if (receive_pic_is_frame_ready()) {
             jpg_data = receive_pic_get_frame_data();
             jpg_len  = receive_pic_get_frame_len();
-            t0 = HAL_GetTick();
+            
             if (decode_data(jpg_data, jpg_len, gray_pic) == JDR_OK) {
-                t1=HAL_GetTick();
+                
                 float abs_e, rel_e;
-                entropy_calc_all(gray_pic, &abs_e, &rel_e);//计算熵值
-                t2=HAL_GetTick();
-                LCD_UpdateEntropy(abs_e, rel_e);        //显示熵值
+                entropy_calc_all(gray_pic, &abs_e, &rel_e);
+                float edge_e = edge_energy_calc(gray_pic);
+
+                LCD_SetBackColor(WHITE); LCD_SetTextColor(BLACK);
+
+                EyeDetect_Update(abs_e);//计算熵值
+                real_e = 0.8*real_e + 0.2*abs_e;
+                LCD_UpdateEntropy(real_e, rel_e);        //显示熵值
                 LCD_PrepareFrame(gray_pic);             //准备帧缓冲
                 LCD_FlushFrame();                       //刷新显示
-                LCD_FPSTick();                          //计算帧率并显示
-                t3=HAL_GetTick();
-
-                char tbuf[16];
+                LCD_FPSTick();
                 LCD_SetBackColor(WHITE);
                 LCD_SetTextColor(BLACK);
-                sprintf(tbuf, "t1-t0:%lums", t1-t0);
-                LCD_ShowString(8, 210, tbuf);
-                sprintf(tbuf, "t2-t1:%lums", t2-t1);
-                LCD_ShowString(8, 230, tbuf);
-                sprintf(tbuf, "t3-t2:%lums", t3-t2);
-                LCD_ShowString(8, 250, tbuf);
-                sprintf(tbuf, "t3-t0:%lums", t3-t0);
-                LCD_ShowString(8, 270, tbuf);
+                LCD_ShowString(8, 300, (EyeDetect_GetState()==EYE_CLOSED) ? "CLOSED" : "OPEN  ");                          //计算帧率并显示
+                
+
+                
 
                 // HAL_UART_Transmit(&huart2, (uint8_t*)&abs_e, 4, 100);
                 // HAL_UART_Transmit(&huart2, (uint8_t*)&rel_e, 4, 100);

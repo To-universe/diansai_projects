@@ -261,3 +261,22 @@ const float entropy_count_lut[PIC_SIZE + 1U] = {
     6.663658812e-03f, 5.832397414e-03f, 5.000650896e-03f, 4.168419538e-03f, 3.335703623e-03f, 2.502503431e-03f, 1.668819243e-03f, 8.346513390e-04f,
     -0.000000000e+00f,
 };
+
+float edge_energy_calc(const uint8_t *gray_pic)
+{
+    uint32_t energy = 0;
+    for (uint16_t y = 0; y < PIC_LEN; y++) {
+        for (uint16_t x = 0; x < PIC_WID; x++) {
+            uint8_t g = gray_pic[y * PIC_WID + x];
+            if (x + 1 < PIC_WID) {
+                int16_t dx = (int16_t)g - (int16_t)gray_pic[y * PIC_WID + x + 1];
+                energy += (dx >= 0) ? (uint32_t)dx : (uint32_t)(-dx);
+            }
+            if (y + 1 < PIC_LEN) {
+                int16_t dy = (int16_t)g - (int16_t)gray_pic[(y + 1) * PIC_WID + x];
+                energy += (dy >= 0) ? (uint32_t)dy : (uint32_t)(-dy);
+            }
+        }
+    }
+    return (float)energy;
+}
