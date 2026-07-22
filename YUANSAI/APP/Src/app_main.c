@@ -1,10 +1,12 @@
 #include "app_main.h"
 #include "receive_pic.h"
+#include "stm32f1xx_hal_uart.h"
 #include "tjpgd.h"
 #include "pic_decode.h"
 #include <stdint.h>
 #include "lcd_driver.h"
 #include "stdio.h"
+#include "usart.h"
 
 
 int app_main(void){
@@ -19,25 +21,24 @@ int app_main(void){
     LCD_ShowDefault();   /* draws UI */
 
     LCD_FlushFrame();
-    printf("初始化\n");
 
     while (1) {
         receive_pic_poll();
-        printf("轮询接收图片\n");
         if (receive_pic_is_frame_ready()) {
             jpg_data = receive_pic_get_frame_data();
             jpg_len = receive_pic_get_frame_len();
 
             if(decode_data(jpg_data, jpg_len, gray_pic)==JDR_OK){
                 //此处计算熵
-
-
+                
                 //此处调用屏显
                 LCD_PrepareFrame(gray_pic);
 
             }
 
             receive_pic_release_frame();
+            uint8_t word[4] = "TXRX"; 
+            HAL_UART_Transmit(&huart1, word, 4, 1000);
         }
         LCD_FlushFrame();
     }
