@@ -252,7 +252,7 @@ void LCD_ShowString(uint16_t x, uint16_t y, const char *str)
 
 /* ======================== Backlight ======================== */
 
-void LCD_BackLight_On(void)  { HAL_GPIO_TogglePin(LCD_BL_GPIO_Port, LCD_BL_Pin); }
+void LCD_BackLight_On(void)  { HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_SET); }
 void LCD_BackLight_Off(void) { HAL_GPIO_WritePin(LCD_BL_GPIO_Port, LCD_BL_Pin, GPIO_PIN_RESET); }
 
 
@@ -317,7 +317,7 @@ void LCD_TickFPS(void)
 
 void LCD_ShowDefault(void)
 {
-    LCD_BackLight_On();
+    // LCD_BackLight_On();
     LCD_FillRect(0, 0, 240, 320, WHITE);
 
     /* Image area border 144x108 */
@@ -337,22 +337,22 @@ void LCD_ShowDefault(void)
     LCD_ShowString(152, 185, "0.0 fps");
 
     /* Static test gradient, generated once */
-    static uint8_t test_gray[SRC_W * SRC_H];
-    static int inited = 0;
-    if (!inited) {
-        for (uint32_t yy = 0; yy < SRC_H; yy++)
-            for (uint32_t xx = 0; xx < SRC_W; xx++)
-                test_gray[yy * SRC_W + xx] = (uint8_t)(xx * 255U / (SRC_W - 1));
-        inited = 1;
-    }
+    // static uint8_t test_gray[SRC_W * SRC_H];
+    // static int inited = 0;
+    // if (!inited) {
+    //     for (uint32_t yy = 0; yy < SRC_H; yy++)
+    //         for (uint32_t xx = 0; xx < SRC_W; xx++)
+    //             test_gray[yy * SRC_W + xx] = (uint8_t)(xx * 255U / (SRC_W - 1));
+    //     inited = 1;
+    // }
 
-    while (1) {
-        LCD_PrepareFrame(test_gray);
-        LCD_FlushFrame();
-        LCD_TickFPS();
+    // while (1) {
+    //     LCD_PrepareFrame(test_gray);
+    //     LCD_FlushFrame();
+    //     LCD_TickFPS();
 
-        /* Try WritePin instead of TogglePin to avoid flicker */
-        HAL_GPIO_TogglePin(LCD_BL_GPIO_Port, LCD_BL_Pin);
-        HAL_Delay(1);
-    }
+    //     /* Try WritePin instead of TogglePin to avoid flicker */
+    //     HAL_GPIO_TogglePin(LCD_BL_GPIO_Port, LCD_BL_Pin);
+    //     HAL_Delay(1);
+    // }
 }

@@ -1,5 +1,5 @@
 {
-    "cmake.cmakePath": "D:/Program Files/CMake/bin/cmake.exe",
+    "cmake.cmakePath": "D:/LVGL/mingw64/bin/cmake.exe",
     "cmake.preferredGenerators": [
         "Ninja"
     ]
