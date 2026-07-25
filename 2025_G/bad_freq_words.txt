@@ -1,0 +1,2 @@
+# freq_hz,freq_word_bin,freq_word_hex,reason,h_mag_db,x_mag_db,y_mag_db
+48988.261719,00000000000100011101011000000011,0x0011D603,x_drop+y_drop,-15.548206,-52.852798,-68.401009

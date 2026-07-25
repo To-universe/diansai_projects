@@ -78,7 +78,19 @@ void app_main(void)
     AD9851_SweepFreq_calc(1000, 10000);
     // HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t *)adc_buffer.u16, ADC_BUFFER_SIZE);
     AD9851_Sweepstart(SweepFreq_value, AD9851_SWEEP_FREQ_COUNT);
-    ADC_wait_stable();
+    // uint32_t freq = 0;
+    // ADC_wait_stable();
+    while (1) {
+        
+        // AD9851_set_Frequency(10000);
+        // HAL_Delay(500);
+        // freq+=50000;
+        // if(freq > 1000000){freq = 0;}
+    }
+    
+    
+    
+    
     // while (!g_adc_sample_ready) {
     //     __WFI();
     // }
@@ -133,6 +145,8 @@ void app_main(void)
             HAL_UART_Transmit(&huart5, (const uint8_t *)&xi, sizeof(xi), 5000);
             HAL_UART_Transmit(&huart5, (const uint8_t *)&yr, sizeof(yr), 5000);
             HAL_UART_Transmit(&huart5, (const uint8_t *)&yi, sizeof(yi), 5000);
+            uint32_t freq_word = AD9851_calc_Frequency(ad9851_sweep.freq_table[ad9851_sweep.index]);
+            HAL_UART_Transmit(&huart5, (const uint8_t *)&freq_word, sizeof(freq_word), 5000);
             float_t d = xr * xr + xi * xi;
             if(d<x_guard2){
                 freq_response[2*ad9851_sweep.index]=0.0f;

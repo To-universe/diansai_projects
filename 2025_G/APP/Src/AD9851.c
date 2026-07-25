@@ -16,25 +16,32 @@ uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT];
 
 void AD9851_Write_Byte(uint8_t word){
     uint32_t odr = GPIOB->ODR;
-    odr = (odr & ~0x00FFu) | word;
+    odr = (odr & ~0x000000FFu) | word;
     GPIOB->ODR = odr;
 
     CLK_GPIO_Port->BSRR = CLK_Pin;
+    __NOP();
     CLK_GPIO_Port->BRR = CLK_Pin;
 }
 
 void AD9851_RESET(void){
     RST_GPIO_Port->BSRR=RST_Pin;
+    __NOP();
     RST_GPIO_Port->BRR=RST_Pin;
 }
 
 void AD9851_FQ_Pulse(void){
     FQ_GPIO_Port->BSRR = FQ_Pin;
+    __NOP();
     FQ_GPIO_Port->BRR = FQ_Pin;
 }
 
+uint32_t AD9851_calc_Frequency(uint32_t frequency){
+    return (uint32_t)(((uint64_t)frequency << 32) / AD9851_SYSCLK);
+}
+
 void AD9851_set_Frequency(uint32_t frequency){
-    uint32_t freq_word = (uint32_t)(((uint64_t)frequency << 32) / AD9851_SYSCLK);
+    uint32_t freq_word = AD9851_calc_Frequency(frequency);
     /* AD9851 parallel load order: W0 control, then W1..W4 frequency MSB to LSB. */
     AD9851_Write_Byte(0x01);
     AD9851_Write_Byte((uint8_t)((freq_word >> 24) & 0xFFu));
@@ -63,9 +70,9 @@ void AD9851_SweepCallback(void){
     }
     
     ad9851_sweep.index++;
-    // if(ad9851_sweep.index>=ad9851_sweep.length){
-    //     ad9851_sweep.index=0;
-    // }
+    if(ad9851_sweep.index>=ad9851_sweep.length){
+        ad9851_sweep.index=0;
+    }
     if (ad9851_sweep.index >= ad9851_sweep.length) {
         AD9851_SweepStop();
         return;

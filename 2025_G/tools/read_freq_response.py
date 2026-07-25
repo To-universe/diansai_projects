@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import serial
 from serial.tools import list_ports
@@ -31,6 +32,8 @@ FREQ_RESPONSE_FLOATS = SWEEP_POINTS * 2
 FREQ_RESPONSE_BYTES = FREQ_RESPONSE_FLOATS * 4
 XY_RECORD_FLOATS = 4
 XY_RECORD_BYTES = XY_RECORD_FLOATS * 4
+XY_RECORD_WORD_BYTES = 4
+XY_RECORD_TOTAL_BYTES = XY_RECORD_BYTES + XY_RECORD_WORD_BYTES
 FS_HZ = 1_000_000.0
 BIN_HZ = FS_HZ / N_FFT
 FRAME_MAGIC = b"FSRT"
@@ -204,7 +207,7 @@ def load_uart_frame(
                     ser,
                     header_timeout,
                     XY_FRAME_MAGIC,
-                    fixed_payload_size=XY_RECORD_BYTES,
+                    fixed_payload_size=XY_RECORD_TOTAL_BYTES,
                 )
             else:
                 payload = read_framed_payload(
@@ -213,6 +216,9 @@ def load_uart_frame(
                     FRAME_MAGIC,
                     fixed_payload_size=FREQ_RESPONSE_BYTES,
                 )
+
+    if frame == "xy":
+        return np.frombuffer(payload[:XY_RECORD_BYTES], dtype="<f4").copy()
 
     dtype = "<u2" if frame == "adc" else "<f4"
     return np.frombuffer(payload, dtype=dtype).copy()
@@ -224,19 +230,20 @@ def load_freq_xy_frames(
     timeout: float,
     reset_input: bool,
     header_timeout: float,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     with serial.Serial(port, baudrate=baud, timeout=timeout) as ser:
         if reset_input:
             ser.reset_input_buffer()
         print(f"Opened {port} @ {baud}.")
         xy_records = []
+        freq_words = []
         freq_payload = None
         for idx in range(SWEEP_POINTS):
             magic, payload = read_next_known_payload(
                 ser,
                 header_timeout,
                 {
-                    XY_FRAME_MAGIC: XY_RECORD_BYTES,
+                    XY_FRAME_MAGIC: XY_RECORD_TOTAL_BYTES,
                     FRAME_MAGIC: FREQ_RESPONSE_BYTES,
                 },
             )
@@ -248,7 +255,8 @@ def load_freq_xy_frames(
                 )
                 break
 
-            xy_records.append(np.frombuffer(payload, dtype="<f4").copy())
+            xy_records.append(np.frombuffer(payload[:XY_RECORD_BYTES], dtype="<f4").copy())
+            freq_words.append(np.frombuffer(payload[XY_RECORD_BYTES:], dtype="<u4").copy())
             if (idx + 1) % 256 == 0 or idx + 1 == SWEEP_POINTS:
                 print(f"Read XYRT records: {idx + 1}/{SWEEP_POINTS}")
 
@@ -257,14 +265,15 @@ def load_freq_xy_frames(
                 ser,
                 header_timeout,
                 {
-                    XY_FRAME_MAGIC: XY_RECORD_BYTES,
+                    XY_FRAME_MAGIC: XY_RECORD_TOTAL_BYTES,
                     FRAME_MAGIC: FREQ_RESPONSE_BYTES,
                 },
             )
             if magic == FRAME_MAGIC:
                 freq_payload = payload
             else:
-                xy_records.append(np.frombuffer(payload, dtype="<f4").copy())
+                xy_records.append(np.frombuffer(payload[:XY_RECORD_BYTES], dtype="<f4").copy())
+                freq_words.append(np.frombuffer(payload[XY_RECORD_BYTES:], dtype="<u4").copy())
                 print(f"Read XYRT records: {len(xy_records)}/{SWEEP_POINTS}")
 
     freq_data = np.frombuffer(freq_payload, dtype="<f4").copy()
@@ -272,7 +281,11 @@ def load_freq_xy_frames(
         xy_data = np.concatenate(xy_records).astype(np.float32, copy=False)
     else:
         xy_data = np.empty(0, dtype=np.float32)
-    return freq_data, xy_data
+    if freq_words:
+        freq_word_data = np.concatenate(freq_words).astype(np.uint32, copy=False)
+    else:
+        freq_word_data = np.empty(0, dtype=np.uint32)
+    return freq_data, xy_data, freq_word_data
 
 
 def load_both_frames(
@@ -310,6 +323,44 @@ def make_frequency_axis(count: int, start_hz: float, stop_hz: float, x_axis: str
 
     k0 = int(np.ceil(start_hz / BIN_HZ))
     return (np.arange(count, dtype=np.float32) + k0) * BIN_HZ
+
+
+def format_frequency_tick(value: float, _pos: int | None = None) -> str:
+    if value >= 1000.0:
+        khz = value / 1000.0
+        if abs(khz - round(khz)) < 1e-6:
+            return f"{int(round(khz))}k"
+        return f"{khz:g}k"
+    return f"{value:g}"
+
+
+def make_log_frequency_ticks(start_hz: float, stop_hz: float) -> list[float]:
+    if start_hz <= 0.0 or stop_hz <= 0.0:
+        return []
+
+    ticks: list[float] = []
+    decade = 10.0 ** np.floor(np.log10(start_hz))
+    while decade <= stop_hz * 10.0:
+        for sub in range(1, 10):
+            tick = decade * sub
+            if start_hz <= tick <= stop_hz:
+                ticks.append(float(tick))
+        decade *= 10.0
+    if stop_hz not in ticks:
+        ticks.append(float(stop_hz))
+    return sorted(set(ticks))
+
+
+def format_frequency_axis(ax: plt.Axes, freqs: np.ndarray, x_axis: str) -> None:
+    ax.set_xlim(float(freqs[0]), float(freqs[-1]))
+    if x_axis == "log-sweep":
+        ticks = make_log_frequency_ticks(float(freqs[0]), float(freqs[-1]))
+        ax.xaxis.set_major_locator(mticker.FixedLocator(ticks))
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(format_frequency_tick))
+        ax.grid(True, which="minor", alpha=0.12)
+    else:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=12))
+        ax.xaxis.set_major_formatter(mticker.FuncFormatter(format_frequency_tick))
 
 
 def complex_sweep_points(data: np.ndarray) -> np.ndarray:
@@ -359,7 +410,7 @@ def plot_mag_mode(
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Magnitude (dB)")
     ax.grid(True, alpha=0.3)
-    ax.set_xlim(freqs[0], freqs[-1])
+    format_frequency_axis(ax, freqs, x_axis)
     fig.tight_layout()
 
     if output:
@@ -395,6 +446,7 @@ def plot_complex_mode(
     ax_phase.set_xlabel("Frequency (Hz)")
     ax_phase.set_ylabel("Phase (deg)")
     ax_phase.grid(True, alpha=0.3)
+    format_frequency_axis(ax_phase, freqs, x_axis)
 
     fig.suptitle("Complex Frequency Response")
     fig.tight_layout()
@@ -431,6 +483,7 @@ def plot_xy_mode(
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Magnitude (dBFS)")
     ax.grid(True, alpha=0.3)
+    format_frequency_axis(ax, freqs, x_axis)
     ax.legend()
     fig.tight_layout()
 
@@ -477,6 +530,7 @@ def plot_freq_xy_mode(
     ax_xy.set_xlabel("Frequency (Hz)")
     ax_xy.set_ylabel("Magnitude (dBFS)")
     ax_xy.grid(True, alpha=0.3)
+    format_frequency_axis(ax_xy, freqs, x_axis)
     ax_xy.legend()
 
     fig.tight_layout()
@@ -563,6 +617,7 @@ def plot_both_mode(
     ax_freq.set_xlabel("Frequency (Hz)")
     ax_freq.set_ylabel("Magnitude (dB)")
     ax_freq.grid(True, alpha=0.3)
+    format_frequency_axis(ax_freq, freqs, x_axis)
 
     fig.tight_layout()
 
@@ -630,6 +685,131 @@ def save_csv(
     print(f"Saved CSV: {path}")
 
 
+def save_xy_csv(
+    xy_data: np.ndarray,
+    freq_words: np.ndarray,
+    path: Path,
+    start_hz: float,
+    stop_hz: float,
+    x_axis: str,
+) -> None:
+    points = xy_sweep_points(xy_data)
+    freqs = make_frequency_axis(points.shape[0], start_hz, stop_hz, x_axis)
+    x = points[:, 0] + 1j * points[:, 1]
+    y = points[:, 2] + 1j * points[:, 3]
+    if freq_words.size >= points.shape[0]:
+        freq_words = freq_words[:points.shape[0]]
+    else:
+        freq_words = np.pad(
+            freq_words.astype(np.float64, copy=False),
+            (0, points.shape[0] - freq_words.size),
+            constant_values=np.nan,
+        )
+
+    rows = np.column_stack(
+        [
+            freqs,
+            freq_words,
+            points[:, 0],
+            points[:, 1],
+            points[:, 2],
+            points[:, 3],
+            20.0 * np.log10(np.abs(x) + 1e-12),
+            20.0 * np.log10(np.abs(y) + 1e-12),
+        ]
+    )
+    header = "freq_hz,freq_word,xr,xi,yr,yi,x_mag_db,y_mag_db"
+    np.savetxt(path, rows, delimiter=",", header=header, comments="")
+    print(f"Saved CSV: {path}")
+
+
+def moving_median(values: np.ndarray, window: int) -> np.ndarray:
+    if values.size == 0:
+        return values.copy()
+    window = max(3, window | 1)
+    radius = window // 2
+    padded = np.pad(values, (radius, radius), mode="edge")
+    return np.array(
+        [np.median(padded[i:i + window]) for i in range(values.size)],
+        dtype=np.float32,
+    )
+
+
+def find_anomaly_indices(
+    freq_data: np.ndarray,
+    xy_data: np.ndarray,
+    x_drop_db: float = 12.0,
+    y_drop_db: float = 12.0,
+    h_spike_db: float = 6.0,
+    median_window: int = 41,
+) -> tuple[np.ndarray, list[str], np.ndarray, np.ndarray, np.ndarray]:
+    h_mag_db = complex_to_mag_db(freq_data)
+    x_mag_db, y_mag_db = xy_to_mag_db(xy_data)
+    count = min(h_mag_db.size, x_mag_db.size, y_mag_db.size)
+    h_mag_db = h_mag_db[:count]
+    x_mag_db = x_mag_db[:count]
+    y_mag_db = y_mag_db[:count]
+
+    h_base = moving_median(h_mag_db, median_window)
+    x_base = moving_median(x_mag_db, median_window)
+    y_base = moving_median(y_mag_db, median_window)
+
+    x_bad = x_mag_db < (x_base - x_drop_db)
+    y_bad = y_mag_db < (y_base - y_drop_db)
+    h_bad = np.abs(h_mag_db - h_base) > h_spike_db
+    bad = x_bad | y_bad | h_bad
+
+    reasons: list[str] = []
+    for idx in np.flatnonzero(bad):
+        parts = []
+        if x_bad[idx]:
+            parts.append("x_drop")
+        if y_bad[idx]:
+            parts.append("y_drop")
+        if h_bad[idx]:
+            parts.append("h_spike")
+        reasons.append("+".join(parts))
+
+    return np.flatnonzero(bad), reasons, h_mag_db, x_mag_db, y_mag_db
+
+
+def save_anomaly_freq_words(
+    path: Path,
+    freq_data: np.ndarray,
+    xy_data: np.ndarray,
+    freq_words: np.ndarray,
+    start_hz: float,
+    stop_hz: float,
+    x_axis: str,
+) -> None:
+    if xy_data.size == 0 or freq_words.size == 0:
+        print("No XYRT/freq_word records captured; skipped anomaly freq_word export.")
+        return
+
+    bad_indices, reasons, h_mag_db, x_mag_db, y_mag_db = find_anomaly_indices(freq_data, xy_data)
+    reason_by_index = {int(idx): reason for idx, reason in zip(bad_indices, reasons)}
+    count = min(h_mag_db.size, freq_words.size)
+    freqs = make_frequency_axis(count, start_hz, stop_hz, x_axis)
+    bad_indices = bad_indices[bad_indices < count]
+
+    with path.open("w", encoding="utf-8") as f:
+        f.write("# freq_hz,freq_word_bin,freq_word_hex,reason,h_mag_db,x_mag_db,y_mag_db\n")
+        for idx in bad_indices:
+            word = int(freq_words[idx])
+            reason = reason_by_index.get(int(idx), "unknown")
+            f.write(
+                f"{freqs[idx]:.6f},"
+                f"{word:032b},"
+                f"0x{word:08X},"
+                f"{reason},"
+                f"{h_mag_db[idx]:.6f},"
+                f"{x_mag_db[idx]:.6f},"
+                f"{y_mag_db[idx]:.6f}\n"
+            )
+
+    print(f"Saved {bad_indices.size} anomaly freq_word records: {path}")
+
+
 def print_data_stats(values: np.ndarray, name: str) -> None:
     finite = values[np.isfinite(values)]
     nonfinite_count = values.size - finite.size
@@ -661,12 +841,14 @@ def parse_args() -> argparse.Namespace:
                         help="freq reads FSRT; xy reads one XYRT record; all captures XYRT during sweep and then FSRT, or falls back to FSRT if XYRT was already missed; adc reads ADCT; both reads ADCT then FSRT.")
     parser.add_argument("--mode", choices=["mag", "complex"], default="mag",
                         help="mag reads one magnitude value per swept frequency point.")
-    parser.add_argument("--start-hz", type=float, default=1000.0)
-    parser.add_argument("--stop-hz", type=float, default=10000.0)
+    parser.add_argument("--start-hz", type=float, default=10000.0)
+    parser.add_argument("--stop-hz", type=float, default=50000.0)
     parser.add_argument("--x-axis", choices=["log-sweep", "fft-bin"], default="log-sweep",
                         help="log-sweep maps received points onto a logarithmic sweep axis; fft-bin uses FFT bin spacing.")
     parser.add_argument("-o", "--output", type=Path, help="Save plot image instead of opening a window.")
     parser.add_argument("--csv", type=Path, help="Also save decoded data to CSV.")
+    parser.add_argument("--anomaly-bin", type=Path,
+                        help="In --frame all mode, save anomalous freq_word values as 32-bit binary strings.")
     parser.add_argument("--no-reset-input", action="store_true",
                         help="Do not clear pending serial input before reading.")
     parser.add_argument("--sync-gap", type=float, default=0.0,
@@ -699,7 +881,7 @@ def main() -> int:
     if args.frame == "all":
         if args.raw:
             raise ValueError("--frame all requires framed UART data; do not use --raw.")
-        freq_data, xy_data = load_freq_xy_frames(
+        freq_data, xy_data, freq_word_data = load_freq_xy_frames(
             port=args.port,
             baud=args.baud,
             timeout=args.timeout,
@@ -708,7 +890,8 @@ def main() -> int:
         )
         print(
             f"Received {freq_data.size} freq float32 values and "
-            f"{xy_data.size} X/Y float32 values."
+            f"{xy_data.size} X/Y float32 values and "
+            f"{freq_word_data.size} freq_word uint32 values."
         )
 
         if args.csv:
@@ -716,9 +899,20 @@ def main() -> int:
             save_csv(freq_data, args.mode, "freq", freq_csv, args.start_hz, args.stop_hz, args.x_axis)
             if xy_data.size:
                 xy_csv = args.csv.with_name(f"{args.csv.stem}_xy{args.csv.suffix}")
-                save_csv(xy_data, args.mode, "xy", xy_csv, args.start_hz, args.stop_hz, args.x_axis)
+                save_xy_csv(xy_data, freq_word_data, xy_csv, args.start_hz, args.stop_hz, args.x_axis)
             else:
                 print("No XYRT records captured; skipped XY CSV.")
+
+        if args.anomaly_bin:
+            save_anomaly_freq_words(
+                args.anomaly_bin,
+                freq_data,
+                xy_data,
+                freq_word_data,
+                args.start_hz,
+                args.stop_hz,
+                args.x_axis,
+            )
 
         if xy_data.size:
             plot_freq_xy_mode(freq_data, xy_data, args.start_hz, args.stop_hz, args.x_axis, args.output)

@@ -10,6 +10,7 @@
 void AD9851_Write_Byte(uint8_t word);
 void AD9851_RESET(void);
 void AD9851_FQ_Pulse(void);
+uint32_t AD9851_calc_Frequency(uint32_t frequency);
 void AD9851_set_Frequency(uint32_t frequency);
 void AD9851_Sweepstart(uint32_t* freq_table,uint16_t length);
 void AD9851_SweepCallback(void);

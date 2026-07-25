@@ -7,6 +7,7 @@
 #include "arm_math.h"
 #include "AD9851.h"
 #include "ADC_FFT_s.h"
+#include "hanning_window_q15.h"
 
 void app_main(void);
 

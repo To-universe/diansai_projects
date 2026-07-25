@@ -1,4 +1,5 @@
 #include "ADC_FFT_s.h"
+#include "hanning_window_q15.h"
 #include "main.h"
 #include "arm_math_types.h"
 #include "dsp/transform_functions.h"
@@ -116,7 +117,7 @@ void project_tone_response(uint32_t freq_hz, float *xr, float *xi, float *yr, fl
     const float w = 6.28318530717958647692f * ((float)freq_hz / FS);
     const float cw = cosf(w);
     const float sw = sinf(w);
-    const float scale = 2.0f / (float)ADC_BUFFER_SIZE;
+    const float scale = 65536.0f / (float)HANNING_WINDOW_Q15_SUM_1024;
 
     float c = 1.0f;
     float s = 0.0f;
@@ -126,13 +127,16 @@ void project_tone_response(uint32_t freq_hz, float *xr, float *xi, float *yr, fl
     float sys_im = 0.0f;
 
     for (uint32_t i = 0; i < ADC_BUFFER_SIZE; i++) {
+        q15_t wq15 = hanning_window_q15_1024[i];
+        float_t window = wq15/32768.0f; 
+
         const float dac = adc_low_byte_to_float(adc_buffer.u16[i]) - dac_mean;
         const float sys = adc_high_byte_to_float(adc_buffer.u16[i]) - sys_mean;
 
-        dac_re += dac * c;
-        dac_im -= dac * s;
-        sys_re += sys * c;
-        sys_im -= sys * s;
+        dac_re += dac * c * window;
+        dac_im -= dac * s * window;
+        sys_re += sys * c * window;
+        sys_im -= sys * s * window;
 
         const float c_next = c * cw - s * sw;
         s = s * cw + c * sw;
