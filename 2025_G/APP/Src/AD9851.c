@@ -59,7 +59,7 @@ void AD9851_Sweepstart(uint32_t *freq_table, uint16_t length){
     ad9851_sweep.length = length;
     ad9851_sweep.index = 0;
     ad9851_sweep.isrunningflag=1;
-
+    __HAL_TIM_SET_COUNTER(&htim3, 0);
     HAL_TIM_Base_Start_IT(&htim3);
     AD9851_set_Frequency(ad9851_sweep.freq_table[ad9851_sweep.index]);
 }
@@ -70,9 +70,9 @@ void AD9851_SweepCallback(void){
     }
     
     ad9851_sweep.index++;
-    if(ad9851_sweep.index>=ad9851_sweep.length){
-        ad9851_sweep.index=0;
-    }
+    // if(ad9851_sweep.index>=ad9851_sweep.length){
+    //     ad9851_sweep.index=0;
+    // }
     if (ad9851_sweep.index >= ad9851_sweep.length) {
         AD9851_SweepStop();
         return;

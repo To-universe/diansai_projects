@@ -6,9 +6,9 @@
 #include <stdbool.h>
 #include "app_main.h"
 
-#define FS                      1000000.0f
+#define FS                      100000.0f
 
-#define ADC_BUFFER_SIZE         1024
+#define ADC_BUFFER_SIZE         2048
 #define DAC_BUFFER_SIZE         1024
 
 #define N_FFT                   ADC_BUFFER_SIZE
@@ -35,7 +35,8 @@ typedef union{
 extern AdcFftBuffer adc_buffer;
 extern WORKBuffer work;
 extern volatile bool g_adc_sample_ready;
-extern float freq_response[AD9851_SWEEP_FREQ_COUNT*2+1];
+extern float freq_response[ADC_BUFFER_SIZE+2];
+extern float freq_response_mag[4][ADC_BUFFER_SIZE+2];
 // extern float xy_response[AD9851_SWEEP_FREQ_COUNT*4];
 
 void capture_to_spectra(void);

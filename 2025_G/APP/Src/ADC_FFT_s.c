@@ -16,7 +16,8 @@ WORKBuffer work;
 
 
 /* H[k]，re/im 交错，bin 0..N_BINS 共 4097 个 */
-float freq_response[AD9851_SWEEP_FREQ_COUNT*2+1];
+float freq_response[ADC_BUFFER_SIZE+2];
+float freq_response_mag[4][ADC_BUFFER_SIZE+2];
 // float xy_response[AD9851_SWEEP_FREQ_COUNT*4];
 
 volatile bool g_adc_sample_ready = false;
@@ -70,19 +71,19 @@ void capture_to_spectra(void)
     const float sys_mean = sys_sum / (float)ADC_BUFFER_SIZE;
 
     // 原逻辑：直接把 ADC 码值转成 Q15
-    // for (uint32_t i = 0; i < ADC_BUFFER_SIZE; i++) {
-    //     float dac = (adc_buffer.u16[i] & 0xFF) * (1.0f / 256.0f);
-    //     float sys = (adc_buffer.u16[i] >> 8)   * (1.0f / 256.0f);
-    //     dac_data[i] = (q15_t)(dac * 32768.0f);
-    //     sys_data[i] = (q15_t)(sys * 32768.0f);
-    // }
-
     for (uint32_t i = 0; i < ADC_BUFFER_SIZE; i++) {
         float dac = (adc_buffer.u16[i] & 0xFF) * (1.0f / 256.0f) - dac_mean;
         float sys = (adc_buffer.u16[i] >> 8)   * (1.0f / 256.0f) - sys_mean;
-        dac_data[i] = f_to_q15_sat(dac);
-        sys_data[i] = f_to_q15_sat(sys);
+        dac_data[i] = (q15_t)(dac * 32768.0f);
+        sys_data[i] = (q15_t)(sys * 32768.0f);
     }
+
+    // for (uint32_t i = 0; i < ADC_BUFFER_SIZE; i++) {
+    //     float dac = (adc_buffer.u16[i] & 0xFF) * (1.0f / 256.0f) - dac_mean;
+    //     float sys = (adc_buffer.u16[i] >> 8)   * (1.0f / 256.0f) - sys_mean;
+    //     dac_data[i] = f_to_q15_sat(dac);
+    //     sys_data[i] = f_to_q15_sat(sys);
+    // }
 
     arm_rfft_instance_q15 fft;
     if (arm_rfft_init_q15(&fft, N_FFT, 0, 1) != ARM_MATH_SUCCESS) {
