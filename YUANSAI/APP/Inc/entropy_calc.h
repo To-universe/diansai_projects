@@ -7,4 +7,6 @@
 
 void entropy_calc_all(uint8_t* gray_pic,float* entropy_abs,float* entropy_rel);
 extern const float entropy_count_lut[PIC_SIZE + 1U];
+float edge_energy_calc(const uint8_t *gray_pic);
+
 #endif
