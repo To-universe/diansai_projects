@@ -11,19 +11,16 @@ Thumbs.db
 
 # =========================
 # VS Code
-# Keep common team settings if you decide to add them later.
+# Local editor and extension settings often contain personal tool paths.
 # =========================
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
+.vscode/
 
 # =========================
 # CMake
 # =========================
 build/
 cmake-build-*/
+CMakeUserPresets.json
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
