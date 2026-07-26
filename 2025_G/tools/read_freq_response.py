@@ -2,11 +2,11 @@
 """Read STM32 UART frequency-response frames and plot them.
 
 Current firmware sends frequency response as:
-    "XYRT" + 4 float32 values for each sweep point while sweeping
+    "XYRT" + float32 xr/xi/yr/yi values for every FFT bin
     "FSRT" + freq_response raw float32 payload
 
-freq_response stores 2048 complex sweep points as re/im pairs.
-XYRT stores one point as xr/xi/yr/yi.
+freq_response stores one complex point per FFT bin as re/im pairs.
+XYRT stores the matching X/Y complex spectrum as xr/xi/yr/yi bins.
 """
 
 from __future__ import annotations
@@ -24,20 +24,21 @@ import serial
 from serial.tools import list_ports
 
 
-ADC_BUFFER_SIZE = 1024
+ADC_BUFFER_SIZE = 2048
 N_FFT = ADC_BUFFER_SIZE
 N_BINS = N_FFT // 2
-SWEEP_POINTS = 2048
+SWEEP_POINTS = N_BINS + 1
 FREQ_RESPONSE_FLOATS = SWEEP_POINTS * 2
 FREQ_RESPONSE_BYTES = FREQ_RESPONSE_FLOATS * 4
-XY_RECORD_FLOATS = 4
-XY_RECORD_BYTES = XY_RECORD_FLOATS * 4
-XY_RECORD_WORD_BYTES = 4
-XY_RECORD_TOTAL_BYTES = XY_RECORD_BYTES + XY_RECORD_WORD_BYTES
-FS_HZ = 1_000_000.0
+XY_RESPONSE_FLOATS = SWEEP_POINTS * 4
+XY_RESPONSE_BYTES = XY_RESPONSE_FLOATS * 4
+COH_RESPONSE_FLOATS = SWEEP_POINTS
+COH_RESPONSE_BYTES = COH_RESPONSE_FLOATS * 4
+FS_HZ = 100_000.0
 BIN_HZ = FS_HZ / N_FFT
 FRAME_MAGIC = b"FSRT"
 XY_FRAME_MAGIC = b"XYRT"
+COH_FRAME_MAGIC = b"COHT"
 ADC_FRAME_MAGIC = b"ADCT"
 
 
@@ -207,7 +208,14 @@ def load_uart_frame(
                     ser,
                     header_timeout,
                     XY_FRAME_MAGIC,
-                    fixed_payload_size=XY_RECORD_TOTAL_BYTES,
+                    fixed_payload_size=XY_RESPONSE_BYTES,
+                )
+            elif frame == "coh":
+                payload = read_framed_payload(
+                    ser,
+                    header_timeout,
+                    COH_FRAME_MAGIC,
+                    fixed_payload_size=COH_RESPONSE_BYTES,
                 )
             else:
                 payload = read_framed_payload(
@@ -216,9 +224,6 @@ def load_uart_frame(
                     FRAME_MAGIC,
                     fixed_payload_size=FREQ_RESPONSE_BYTES,
                 )
-
-    if frame == "xy":
-        return np.frombuffer(payload[:XY_RECORD_BYTES], dtype="<f4").copy()
 
     dtype = "<u2" if frame == "adc" else "<f4"
     return np.frombuffer(payload, dtype=dtype).copy()
@@ -230,62 +235,45 @@ def load_freq_xy_frames(
     timeout: float,
     reset_input: bool,
     header_timeout: float,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     with serial.Serial(port, baudrate=baud, timeout=timeout) as ser:
         if reset_input:
             ser.reset_input_buffer()
         print(f"Opened {port} @ {baud}.")
-        xy_records = []
-        freq_words = []
+        xy_data = np.empty(0, dtype=np.float32)
+        coherence_data = np.empty(0, dtype=np.float32)
         freq_payload = None
-        for idx in range(SWEEP_POINTS):
-            magic, payload = read_next_known_payload(
-                ser,
-                header_timeout,
-                {
-                    XY_FRAME_MAGIC: XY_RECORD_TOTAL_BYTES,
-                    FRAME_MAGIC: FREQ_RESPONSE_BYTES,
-                },
-            )
-            if magic == FRAME_MAGIC:
-                freq_payload = payload
-                print(
-                    "Received FSRT before all XYRT records. "
-                    f"Captured {idx}/{SWEEP_POINTS} XYRT records; plotting available freq_response."
-                )
-                break
-
-            xy_records.append(np.frombuffer(payload[:XY_RECORD_BYTES], dtype="<f4").copy())
-            freq_words.append(np.frombuffer(payload[XY_RECORD_BYTES:], dtype="<u4").copy())
-            if (idx + 1) % 256 == 0 or idx + 1 == SWEEP_POINTS:
-                print(f"Read XYRT records: {idx + 1}/{SWEEP_POINTS}")
-
         while freq_payload is None:
             magic, payload = read_next_known_payload(
                 ser,
                 header_timeout,
                 {
-                    XY_FRAME_MAGIC: XY_RECORD_TOTAL_BYTES,
+                    XY_FRAME_MAGIC: XY_RESPONSE_BYTES,
+                    COH_FRAME_MAGIC: COH_RESPONSE_BYTES,
                     FRAME_MAGIC: FREQ_RESPONSE_BYTES,
                 },
             )
             if magic == FRAME_MAGIC:
                 freq_payload = payload
-            else:
-                xy_records.append(np.frombuffer(payload[:XY_RECORD_BYTES], dtype="<f4").copy())
-                freq_words.append(np.frombuffer(payload[XY_RECORD_BYTES:], dtype="<u4").copy())
-                print(f"Read XYRT records: {len(xy_records)}/{SWEEP_POINTS}")
+                continue
+
+            if magic == COH_FRAME_MAGIC:
+                coherence_data = np.frombuffer(payload, dtype="<f4").copy()
+                print(
+                    f"Read COHT frame: {coherence_data.size}/{SWEEP_POINTS} "
+                    "coherence bins."
+                )
+                continue
+
+            xy_data = np.frombuffer(payload, dtype="<f4").copy()
+            print(
+                f"Read XYRT frame: {xy_data.size // 4}/{SWEEP_POINTS} "
+                "X/Y FFT bins."
+            )
 
     freq_data = np.frombuffer(freq_payload, dtype="<f4").copy()
-    if xy_records:
-        xy_data = np.concatenate(xy_records).astype(np.float32, copy=False)
-    else:
-        xy_data = np.empty(0, dtype=np.float32)
-    if freq_words:
-        freq_word_data = np.concatenate(freq_words).astype(np.uint32, copy=False)
-    else:
-        freq_word_data = np.empty(0, dtype=np.uint32)
-    return freq_data, xy_data, freq_word_data
+    freq_word_data = np.empty(0, dtype=np.uint32)
+    return freq_data, xy_data, coherence_data, freq_word_data
 
 
 def load_both_frames(
@@ -320,6 +308,9 @@ def make_frequency_axis(count: int, start_hz: float, stop_hz: float, x_axis: str
         if start_hz <= 0.0 or stop_hz <= 0.0:
             raise ValueError("Log sweep axis requires positive start/stop frequencies.")
         return np.geomspace(start_hz, stop_hz, count, dtype=np.float32)
+
+    if x_axis == "linear-sweep":
+        return np.linspace(start_hz, stop_hz, count, dtype=np.float32)
 
     k0 = int(np.ceil(start_hz / BIN_HZ))
     return (np.arange(count, dtype=np.float32) + k0) * BIN_HZ
@@ -405,7 +396,8 @@ def plot_mag_mode(
     print_data_stats(mag_db, "mag_db")
 
     fig, ax = plt.subplots(figsize=(10, 5.5))
-    ax.semilogx(freqs, mag_db, linewidth=1.2)
+    plot_fn = ax.semilogx if x_axis == "log-sweep" else ax.plot
+    plot_fn(freqs, mag_db, linewidth=1.2)
     ax.set_title("Frequency Response")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Magnitude (dB)")
@@ -438,11 +430,13 @@ def plot_complex_mode(
     print_data_stats(mag_db, "mag_db")
 
     fig, (ax_mag, ax_phase) = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
-    ax_mag.plot(freqs, mag_db, linewidth=1.1)
+    plot_fn = ax_mag.semilogx if x_axis == "log-sweep" else ax_mag.plot
+    plot_fn(freqs, mag_db, linewidth=1.1)
     ax_mag.set_ylabel("Magnitude (dB)")
     ax_mag.grid(True, alpha=0.3)
 
-    ax_phase.plot(freqs, phase_deg, linewidth=1.1)
+    plot_phase_fn = ax_phase.semilogx if x_axis == "log-sweep" else ax_phase.plot
+    plot_phase_fn(freqs, phase_deg, linewidth=1.1)
     ax_phase.set_xlabel("Frequency (Hz)")
     ax_phase.set_ylabel("Phase (deg)")
     ax_phase.grid(True, alpha=0.3)
@@ -484,6 +478,33 @@ def plot_xy_mode(
     ax.set_ylabel("Magnitude (dBFS)")
     ax.grid(True, alpha=0.3)
     format_frequency_axis(ax, freqs, x_axis)
+    ax.legend()
+    fig.tight_layout()
+
+    if output:
+        fig.savefig(output, dpi=160)
+        print(f"Saved plot: {output}")
+    else:
+        plt.show()
+
+
+def plot_coherence_mode(data: np.ndarray, output: Path | None) -> None:
+    count = min(data.size, SWEEP_POINTS)
+    if count == 0:
+        raise ValueError("No coherence samples received.")
+
+    freqs = np.arange(count, dtype=np.float32) * BIN_HZ
+    coherence = np.clip(data[:count], 0.0, 1.0)
+    print_data_stats(coherence, "coherence")
+
+    fig, ax = plt.subplots(figsize=(10, 4.8))
+    ax.plot(freqs, coherence, linewidth=1.1)
+    ax.axhline(0.8, color="tab:red", linestyle="--", linewidth=1.0, label="0.8 reference")
+    ax.set_title("Magnitude-Squared Coherence")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Coherence")
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
 
@@ -643,6 +664,12 @@ def save_csv(
         time_us = np.arange(data.size, dtype=np.float32) * (1_000_000.0 / FS_HZ)
         rows = np.column_stack([time_us, adc1, adc2])
         header = "time_us,adc1,adc2"
+    elif frame == "coh":
+        count = min(data.size, SWEEP_POINTS)
+        bins = np.arange(count, dtype=np.uint32)
+        freqs = bins.astype(np.float32) * BIN_HZ
+        rows = np.column_stack([bins, freqs, data[:count]])
+        header = "k,freq_hz,coherence"
     elif frame == "xy":
         points = xy_sweep_points(data)
         freqs = make_frequency_axis(points.shape[0], start_hz, stop_hz, x_axis)
@@ -837,14 +864,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-p", "--port", help="Serial port, for example COM5.")
     parser.add_argument("-b", "--baud", type=int, default=115200, help="UART baud rate.")
     parser.add_argument("--timeout", type=float, default=10.0, help="Serial read timeout in seconds.")
-    parser.add_argument("--frame", choices=["freq", "xy", "adc", "all", "both"], default="freq",
-                        help="freq reads FSRT; xy reads one XYRT record; all captures XYRT during sweep and then FSRT, or falls back to FSRT if XYRT was already missed; adc reads ADCT; both reads ADCT then FSRT.")
+    parser.add_argument("--frame", choices=["freq", "xy", "coh", "adc", "all", "both"], default="freq",
+                        help="freq reads FSRT; xy reads one bulk XYRT spectrum frame; coh reads one COHT coherence frame; all reads optional XYRT/COHT then FSRT; adc reads ADCT; both reads ADCT then FSRT.")
     parser.add_argument("--mode", choices=["mag", "complex"], default="mag",
                         help="mag reads one magnitude value per swept frequency point.")
     parser.add_argument("--start-hz", type=float, default=10000.0)
     parser.add_argument("--stop-hz", type=float, default=50000.0)
-    parser.add_argument("--x-axis", choices=["log-sweep", "fft-bin"], default="log-sweep",
-                        help="log-sweep maps received points onto a logarithmic sweep axis; fft-bin uses FFT bin spacing.")
+    parser.add_argument("--x-axis", choices=["log-sweep", "linear-sweep", "fft-bin"], default="log-sweep",
+                        help="log-sweep/linear-sweep maps received points onto a sweep axis; fft-bin uses FFT bin spacing.")
     parser.add_argument("-o", "--output", type=Path, help="Save plot image instead of opening a window.")
     parser.add_argument("--csv", type=Path, help="Also save decoded data to CSV.")
     parser.add_argument("--anomaly-bin", type=Path,
@@ -881,7 +908,7 @@ def main() -> int:
     if args.frame == "all":
         if args.raw:
             raise ValueError("--frame all requires framed UART data; do not use --raw.")
-        freq_data, xy_data, freq_word_data = load_freq_xy_frames(
+        freq_data, xy_data, coherence_data, freq_word_data = load_freq_xy_frames(
             port=args.port,
             baud=args.baud,
             timeout=args.timeout,
@@ -891,6 +918,7 @@ def main() -> int:
         print(
             f"Received {freq_data.size} freq float32 values and "
             f"{xy_data.size} X/Y float32 values and "
+            f"{coherence_data.size} coherence float32 values and "
             f"{freq_word_data.size} freq_word uint32 values."
         )
 
@@ -902,6 +930,11 @@ def main() -> int:
                 save_xy_csv(xy_data, freq_word_data, xy_csv, args.start_hz, args.stop_hz, args.x_axis)
             else:
                 print("No XYRT records captured; skipped XY CSV.")
+            if coherence_data.size:
+                coh_csv = args.csv.with_name(f"{args.csv.stem}_coherence{args.csv.suffix}")
+                save_csv(coherence_data, args.mode, "coh", coh_csv, args.start_hz, args.stop_hz, args.x_axis)
+            else:
+                print("No COHT records captured; skipped coherence CSV.")
 
         if args.anomaly_bin:
             save_anomaly_freq_words(
@@ -963,6 +996,8 @@ def main() -> int:
         plot_adc_mode(data, args.output)
     elif args.frame == "xy":
         plot_xy_mode(data, args.start_hz, args.stop_hz, args.x_axis, args.output)
+    elif args.frame == "coh":
+        plot_coherence_mode(data, args.output)
     elif args.mode == "mag":
         plot_mag_mode(data, args.start_hz, args.stop_hz, args.x_axis, args.output)
     else:

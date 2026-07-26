@@ -2,11 +2,16 @@
 """Read current STM32 UART magnitude response data and plot/save it.
 
 Current firmware protocol:
+    b"ADCT" + uint32 payload_size + uint16 ADC samples, optional.
+    b"XYRT" + float32 xr/xi/yr/yi pairs for all FFT bins, optional.
+    b"COHT" + float32 coherence values for all FFT bins, optional.
     b"FSRT" + one little-endian float32 magnitude value, repeated for each FFT bin.
 
-The frequency axis is the FFT-bin axis:
+By default, the frequency axis is the FFT-bin axis:
     f[k] = k * fs / nfft
-not the AD9851 sweep table index.
+not the AD9851 sweep table index. Use --x-axis linear-sweep or
+--x-axis log-sweep only when you want to label the received points by the
+sweep sequence instead.
 """
 
 from __future__ import annotations
@@ -27,6 +32,8 @@ from serial.tools import list_ports
 POINT_MAGIC = b"FSRT"
 FRAME_MAGIC = b"FRSP"
 ADC_MAGIC = b"ADCT"
+XY_MAGIC = b"XYRT"
+COH_MAGIC = b"COHT"
 
 
 def list_serial_ports() -> None:
@@ -110,6 +117,37 @@ def read_adc_payload_after_magic(ser: serial.Serial) -> np.ndarray:
     return np.frombuffer(payload, dtype="<u2").copy()
 
 
+def xy_float_count(nfft: int) -> int:
+    if nfft <= 0 or nfft % 2 != 0:
+        raise ValueError(f"nfft must be a positive even integer, got {nfft}.")
+    return 4 * (nfft // 2 + 1)
+
+
+def coherence_float_count(nfft: int) -> int:
+    if nfft <= 0 or nfft % 2 != 0:
+        raise ValueError(f"nfft must be a positive even integer, got {nfft}.")
+    return nfft // 2 + 1
+
+
+def read_xy_payload_after_magic(ser: serial.Serial, nfft: int) -> np.ndarray:
+    payload_size = xy_float_count(nfft) * 4
+    try:
+        payload = read_exact(ser, payload_size)
+    except TimeoutError as exc:
+        raise TimeoutError(
+            f"{exc} XYRT is a bulk frame of {payload_size} bytes. "
+            "At 115200 baud it takes about 1.5 s on the wire, so the MCU UART "
+            "Transmit timeout must be comfortably larger than that."
+        ) from exc
+    return np.frombuffer(payload, dtype="<f4").copy()
+
+
+def read_coherence_payload_after_magic(ser: serial.Serial, nfft: int) -> np.ndarray:
+    payload_size = coherence_float_count(nfft) * 4
+    payload = read_exact(ser, payload_size)
+    return np.frombuffer(payload, dtype="<f4").copy()
+
+
 def read_point_protocol(
     ser: serial.Serial,
     count: int,
@@ -150,51 +188,101 @@ def read_frame_payload_after_magic(ser: serial.Serial) -> np.ndarray:
 def read_auto_protocol(
     ser: serial.Serial,
     count: int,
+    nfft: int,
     header_timeout_s: float,
-) -> tuple[str, np.ndarray, np.ndarray | None]:
+) -> tuple[str, np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     adc_data = None
+    xy_data = None
+    coherence_data = None
 
     while True:
-        magic = wait_any_magic(ser, (ADC_MAGIC, POINT_MAGIC, FRAME_MAGIC), header_timeout_s)
+        magic = wait_any_magic(
+            ser,
+            (ADC_MAGIC, XY_MAGIC, COH_MAGIC, POINT_MAGIC, FRAME_MAGIC),
+            header_timeout_s,
+        )
 
         if magic == ADC_MAGIC:
             adc_data = read_adc_payload_after_magic(ser)
             print(f"Read ADC frame: {adc_data.size} packed samples.")
             continue
 
+        if magic == XY_MAGIC:
+            xy_data = read_xy_payload_after_magic(ser, nfft)
+            print(f"Read XY frame: {xy_data.size // 4} FFT bins.")
+            continue
+
+        if magic == COH_MAGIC:
+            coherence_data = read_coherence_payload_after_magic(ser, nfft)
+            print(f"Read coherence frame: {coherence_data.size} FFT bins.")
+            continue
+
         if magic == FRAME_MAGIC:
-            return "frame", read_frame_payload_after_magic(ser), adc_data
+            return "frame", read_frame_payload_after_magic(ser), adc_data, xy_data, coherence_data
 
         first_value = struct.unpack("<f", read_exact(ser, 4))[0]
-        return "points", read_point_protocol(ser, count, header_timeout_s, first_value), adc_data
+        return (
+            "points",
+            read_point_protocol(ser, count, header_timeout_s, first_value),
+            adc_data,
+            xy_data,
+            coherence_data,
+        )
 
 
 def read_capture(
     ser: serial.Serial,
     protocol: str,
     count: int,
+    nfft: int,
     header_timeout_s: float,
-) -> tuple[str, np.ndarray, np.ndarray | None]:
+) -> tuple[str, np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     adc_data = None
+    xy_data = None
+    coherence_data = None
 
     while True:
         if protocol == "points":
-            magic = wait_any_magic(ser, (ADC_MAGIC, POINT_MAGIC), header_timeout_s)
+            magic = wait_any_magic(
+                ser,
+                (ADC_MAGIC, XY_MAGIC, COH_MAGIC, POINT_MAGIC),
+                header_timeout_s,
+            )
         elif protocol == "frame":
-            magic = wait_any_magic(ser, (ADC_MAGIC, FRAME_MAGIC), header_timeout_s)
+            magic = wait_any_magic(
+                ser,
+                (ADC_MAGIC, XY_MAGIC, COH_MAGIC, FRAME_MAGIC),
+                header_timeout_s,
+            )
         else:
-            return read_auto_protocol(ser, count, header_timeout_s)
+            return read_auto_protocol(ser, count, nfft, header_timeout_s)
 
         if magic == ADC_MAGIC:
             adc_data = read_adc_payload_after_magic(ser)
             print(f"Read ADC frame: {adc_data.size} packed samples.")
             continue
 
+        if magic == XY_MAGIC:
+            xy_data = read_xy_payload_after_magic(ser, nfft)
+            print(f"Read XY frame: {xy_data.size // 4} FFT bins.")
+            continue
+
+        if magic == COH_MAGIC:
+            coherence_data = read_coherence_payload_after_magic(ser, nfft)
+            print(f"Read coherence frame: {coherence_data.size} FFT bins.")
+            continue
+
         if magic == POINT_MAGIC:
             first_value = struct.unpack("<f", read_exact(ser, 4))[0]
-            return "points", read_point_protocol(ser, count, header_timeout_s, first_value), adc_data
+            return (
+                "points",
+                read_point_protocol(ser, count, header_timeout_s, first_value),
+                adc_data,
+                xy_data,
+                coherence_data,
+            )
 
-        return "frame", read_frame_payload_after_magic(ser), adc_data
+        return "frame", read_frame_payload_after_magic(ser), adc_data, xy_data, coherence_data
 
 
 def default_bin_range(fs: float, nfft: int, start_hz: float, stop_hz: float) -> tuple[int, int]:
@@ -206,8 +294,36 @@ def default_bin_range(fs: float, nfft: int, start_hz: float, stop_hz: float) -> 
     return k0, k1
 
 
-def make_frequency_axis(fs: float, nfft: int, k0: int, count: int) -> np.ndarray:
-    return (np.arange(count, dtype=np.float64) + k0) * (fs / nfft)
+def make_frequency_axis(
+    fs: float,
+    nfft: int,
+    k0: int,
+    count: int,
+    start_hz: float,
+    stop_hz: float,
+    x_axis: str,
+) -> np.ndarray:
+    if count <= 0:
+        raise ValueError("No frequency-response points received.")
+
+    if x_axis == "fft-bin":
+        return (np.arange(count, dtype=np.float64) + k0) * (fs / nfft)
+
+    if x_axis == "linear-sweep":
+        return np.linspace(start_hz, stop_hz, count, dtype=np.float64)
+
+    if x_axis == "log-sweep":
+        if start_hz <= 0.0 or stop_hz <= 0.0:
+            raise ValueError("Log sweep axis requires positive start/stop frequencies.")
+        return np.geomspace(start_hz, stop_hz, count, dtype=np.float64)
+
+    raise ValueError(f"Unknown x-axis mode: {x_axis}")
+
+
+def make_xy_frequency_axis(fs: float, nfft: int, count: int) -> np.ndarray:
+    max_count = nfft // 2 + 1
+    usable = min(count, max_count)
+    return np.arange(usable, dtype=np.float64) * (fs / nfft)
 
 
 def save_csv(path: Path, freqs: np.ndarray, mag_db: np.ndarray, k0: int) -> None:
@@ -243,6 +359,65 @@ def save_adc_csv(path: Path, packed: np.ndarray, fs: float) -> None:
     print(f"Saved ADC CSV: {path}")
 
 
+def split_xy_bins(data: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    usable = (data.size // 4) * 4
+    if usable == 0:
+        raise ValueError("No XYRT samples received.")
+    points = data[:usable].reshape(-1, 4)
+    return points[:, 0], points[:, 1], points[:, 2], points[:, 3]
+
+
+def xy_magnitude_spectrum_db(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    xr, xi, yr, yi = split_xy_bins(data)
+    x_mag_db = 20.0 * np.log10(np.hypot(xr, xi) + 1e-12)
+    y_mag_db = 20.0 * np.log10(np.hypot(yr, yi) + 1e-12)
+    return x_mag_db, y_mag_db
+
+
+def save_xy_csv(path: Path, data: np.ndarray, fs: float, nfft: int) -> None:
+    xr, xi, yr, yi = split_xy_bins(data)
+    count = min(xr.size, nfft // 2 + 1)
+    freqs = make_xy_frequency_axis(fs, nfft, count)
+    x = xr[:count] + 1j * xi[:count]
+    y = yr[:count] + 1j * yi[:count]
+    rows = np.column_stack(
+        (
+            np.arange(count, dtype=np.uint32),
+            freqs,
+            xr[:count],
+            xi[:count],
+            yr[:count],
+            yi[:count],
+            20.0 * np.log10(np.abs(x) + 1e-12),
+            20.0 * np.log10(np.abs(y) + 1e-12),
+        )
+    )
+    np.savetxt(
+        path,
+        rows,
+        delimiter=",",
+        header="k,freq_hz,xr,xi,yr,yi,x_mag_db,y_mag_db",
+        comments="",
+        fmt=["%d", "%.9g", "%.9g", "%.9g", "%.9g", "%.9g", "%.9g", "%.9g"],
+    )
+    print(f"Saved XY CSV: {path}")
+
+
+def save_coherence_csv(path: Path, data: np.ndarray, fs: float, nfft: int) -> None:
+    count = min(data.size, nfft // 2 + 1)
+    freqs = make_xy_frequency_axis(fs, nfft, count)
+    rows = np.column_stack((np.arange(count, dtype=np.uint32), freqs, data[:count]))
+    np.savetxt(
+        path,
+        rows,
+        delimiter=",",
+        header="k,freq_hz,coherence",
+        comments="",
+        fmt=["%d", "%.9g", "%.9g"],
+    )
+    print(f"Saved coherence CSV: {path}")
+
+
 def split_adc_channels(packed: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     adc_low = (packed & 0x00FF).astype(np.float64) / 256.0
     adc_high = ((packed >> 8) & 0x00FF).astype(np.float64) / 256.0
@@ -252,7 +427,8 @@ def split_adc_channels(packed: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 def adc_magnitude_spectrum_db(samples: np.ndarray, fs: float) -> tuple[np.ndarray, np.ndarray]:
     if samples.size < 2:
         raise ValueError("Need at least two ADC samples for FFT.")
-
+    mean = np.mean(samples)
+    samples = samples-mean
     spectrum = np.fft.rfft(samples)
     mag = np.abs(spectrum)
     freqs = np.fft.rfftfreq(samples.size, d=1.0 / fs)
@@ -321,12 +497,90 @@ def plot_adc_time_and_spectrum(
         plt.close(fig)
 
 
-def plot_response(freqs: np.ndarray, mag_db: np.ndarray, output: Path | None) -> None:
-    fig, ax = plt.subplots(figsize=(9.5, 5.2))
-    if freqs.size and freqs[0] <= 0.0:
-        ax.plot(freqs, mag_db, linewidth=1.0)
+def plot_xy_spectrum(
+    data: np.ndarray,
+    fs: float,
+    nfft: int,
+    output: Path | None,
+    show: bool,
+) -> None:
+    x_mag_db, y_mag_db = xy_magnitude_spectrum_db(data)
+    count = min(x_mag_db.size, y_mag_db.size, nfft // 2 + 1)
+    freqs = make_xy_frequency_axis(fs, nfft, count)
+    x_mag_db = x_mag_db[:count]
+    y_mag_db = y_mag_db[:count]
+
+    fig, ax = plt.subplots(figsize=(10, 5.5), constrained_layout=True)
+    ax.plot(freqs, x_mag_db, label="X spectrum", linewidth=1.0)
+    ax.plot(freqs, y_mag_db, label="Y spectrum", linewidth=1.0, alpha=0.9)
+    ax.set_title("X/Y FFT Magnitude Spectrum")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Magnitude (dB)")
+    ax.set_xlim(0.0, fs / 2.0)
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+
+    if output:
+        fig.savefig(output, dpi=160)
+        print(f"Saved XY plot: {output}")
+    if show:
+        plt.show()
     else:
+        plt.close(fig)
+
+
+def plot_coherence(
+    data: np.ndarray,
+    fs: float,
+    nfft: int,
+    k0: int,
+    k1: int,
+    output: Path | None,
+    show: bool,
+) -> None:
+    count = min(data.size, nfft // 2 + 1)
+    if count == 0:
+        raise ValueError("No coherence samples received.")
+
+    k0 = max(0, min(k0, count - 1))
+    k1 = max(k0, min(k1, count - 1))
+    bins = np.arange(k0, k1 + 1, dtype=np.uint32)
+    freqs = bins.astype(np.float64) * (fs / nfft)
+    coherence = np.clip(data[k0 : k1 + 1].astype(np.float64), 0.0, 1.0)
+
+    fig, ax = plt.subplots(figsize=(9.5, 4.6), constrained_layout=True)
+    if freqs.size and freqs[0] > 0.0:
+        ax.semilogx(freqs, coherence, linewidth=1.2)
+    else:
+        ax.plot(freqs, coherence, linewidth=1.2)
+    ax.axhline(0.8, color="tab:red", linestyle="--", linewidth=1.0, label="0.8 reference")
+    ax.set_title("Magnitude-Squared Coherence")
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel("Coherence")
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, which="both", alpha=0.3)
+    ax.legend()
+
+    if output:
+        fig.savefig(output, dpi=160)
+        print(f"Saved coherence plot: {output}")
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
+
+
+def plot_response(
+    freqs: np.ndarray,
+    mag_db: np.ndarray,
+    output: Path | None,
+    x_axis: str,
+) -> None:
+    fig, ax = plt.subplots(figsize=(9.5, 5.2))
+    if x_axis in ("fft-bin", "log-sweep") and freqs.size and freqs[0] > 0.0:
         ax.semilogx(freqs, mag_db, marker="o", linewidth=1.2, markersize=4)
+    else:
+        ax.plot(freqs, mag_db, linewidth=1.0)
     ax.set_title("Frequency Response Magnitude")
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel("Magnitude (dB)")
@@ -350,7 +604,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fs", type=float, default=100_000.0, help="ADC sampling rate in Hz.")
     parser.add_argument("--nfft", type=int, default=2048, help="FFT size used by firmware.")
     parser.add_argument("--start", type=float, default=1000.0, help="Start frequency used for k0.")
-    parser.add_argument("--stop", type=float, default=20000.0, help="Stop frequency used for k1.")
+    parser.add_argument("--stop", type=float, default=50000.0, help="Stop frequency used for k1.")
+    parser.add_argument(
+        "--x-axis",
+        choices=("fft-bin", "linear-sweep", "log-sweep"),
+        default="fft-bin",
+        help=(
+            "Frequency axis for FSRT response CSV/plot. fft-bin matches the "
+            "current firmware response bins; linear-sweep/log-sweep label points "
+            "as a sweep sequence."
+        ),
+    )
     parser.add_argument("--k0", type=int, help="Override first FFT bin index.")
     parser.add_argument("--k1", type=int, help="Override last FFT bin index.")
     parser.add_argument(
@@ -378,12 +642,30 @@ def parse_args() -> argparse.Namespace:
         default=Path("result_uart_adc.csv"),
         help="ADC CSV output path when an ADCT frame is received.",
     )
+    parser.add_argument(
+        "--xy-csv",
+        type=Path,
+        default=Path("result_uart_xy.csv"),
+        help="X/Y spectrum CSV output path when an XYRT frame is received.",
+    )
+    parser.add_argument(
+        "--coh-csv",
+        type=Path,
+        default=Path("result_uart_coherence.csv"),
+        help="Coherence CSV output path when a COHT frame is received.",
+    )
     parser.add_argument("--no-csv", action="store_true", help="Do not save CSV.")
     parser.add_argument("--no-adc-csv", action="store_true", help="Do not save ADC CSV.")
+    parser.add_argument("--no-xy-csv", action="store_true", help="Do not save X/Y spectrum CSV.")
+    parser.add_argument("--no-coh-csv", action="store_true", help="Do not save coherence CSV.")
     parser.add_argument("--plot", action="store_true", help="Show a plot after reading.")
     parser.add_argument("--save-plot", type=Path, help="Save plot image instead of only showing it.")
     parser.add_argument("--plot-adc", action="store_true", help="Show ADC time/spectrum plots.")
     parser.add_argument("--save-adc-plot", type=Path, help="Save ADC time/spectrum plot image.")
+    parser.add_argument("--plot-xy", action="store_true", help="Show X/Y spectrum plot.")
+    parser.add_argument("--save-xy-plot", type=Path, help="Save X/Y spectrum plot image.")
+    parser.add_argument("--plot-coh", action="store_true", help="Show coherence plot.")
+    parser.add_argument("--save-coh-plot", type=Path, help="Save coherence plot image.")
     parser.add_argument(
         "--response-from-adc",
         action="store_true",
@@ -421,14 +703,23 @@ def main() -> int:
     with serial.Serial(args.port, baudrate=args.baud, timeout=args.timeout) as ser:
         ser.reset_input_buffer()
         print(f"Opened {args.port} @ {args.baud}.")
-        protocol, mag_db, adc_data = read_capture(
+        protocol, mag_db, adc_data, xy_data, coherence_data = read_capture(
             ser,
             args.protocol,
             expected_count,
+            args.nfft,
             args.header_timeout,
         )
 
-    freqs = make_frequency_axis(args.fs, args.nfft, k0, mag_db.size)
+    freqs = make_frequency_axis(
+        args.fs,
+        args.nfft,
+        k0,
+        mag_db.size,
+        args.start,
+        args.stop,
+        args.x_axis,
+    )
     print(f"Protocol: {protocol}")
     print(f"Received {mag_db.size} float32 values.")
     print(
@@ -451,6 +742,26 @@ def main() -> int:
         save_csv(args.csv, response_freqs, response_mag_db, response_k0)
     if adc_data is not None and not args.no_adc_csv:
         save_adc_csv(args.adc_csv, adc_data, args.fs)
+    if xy_data is not None:
+        x_mag_db, y_mag_db = xy_magnitude_spectrum_db(xy_data)
+        print(
+            f"XY spectrum: bins={min(x_mag_db.size, args.nfft // 2 + 1)}, "
+            f"X max={float(np.max(x_mag_db)):.3f} dB, "
+            f"Y max={float(np.max(y_mag_db)):.3f} dB."
+        )
+        if not args.no_xy_csv:
+            save_xy_csv(args.xy_csv, xy_data, args.fs, args.nfft)
+    if coherence_data is not None:
+        count = min(coherence_data.size, args.nfft // 2 + 1)
+        clipped = np.clip(coherence_data[:count], 0.0, 1.0)
+        print(
+            f"Coherence: bins={count}, "
+            f"min={float(np.min(clipped)):.4f}, "
+            f"max={float(np.max(clipped)):.4f}, "
+            f"mean={float(np.mean(clipped)):.4f}."
+        )
+        if not args.no_coh_csv:
+            save_coherence_csv(args.coh_csv, coherence_data, args.fs, args.nfft)
     if adc_data is not None and (args.plot_adc or args.save_adc_plot):
         plot_adc_time_and_spectrum(
             adc_data,
@@ -458,9 +769,27 @@ def main() -> int:
             args.save_adc_plot,
             show=args.plot_adc,
         )
+    if xy_data is not None and (args.plot_xy or args.save_xy_plot):
+        plot_xy_spectrum(
+            xy_data,
+            args.fs,
+            args.nfft,
+            args.save_xy_plot,
+            show=args.plot_xy,
+        )
+    if coherence_data is not None and (args.plot_coh or args.save_coh_plot):
+        plot_coherence(
+            coherence_data,
+            args.fs,
+            args.nfft,
+            k0,
+            k1,
+            args.save_coh_plot,
+            show=args.plot_coh,
+        )
 
     if args.plot or args.save_plot:
-        plot_response(response_freqs, response_mag_db, args.save_plot)
+        plot_response(response_freqs, response_mag_db, args.save_plot, args.x_axis)
 
     return 0
 

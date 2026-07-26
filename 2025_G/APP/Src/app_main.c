@@ -74,54 +74,98 @@ static void uart_send_mag_response(uint32_t k0, uint32_t k1)
 
 void app_main(void)
 {
-    uint8_t count = 0;
-
+    static const uint32_t sweep_start_hz = 1000U;
+    static const uint32_t sweep_stop_hz = 50000U;
 
     AD9851_RESET();
-    AD9851_SweepFreq_calc(1000, 40000);
-    HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t *)adc_buffer.u16, ADC_BUFFER_SIZE);
-    AD9851_Sweepstart(SweepFreq_value, AD9851_SWEEP_FREQ_COUNT);
-    __HAL_TIM_SET_COUNTER(&htim2, 0);
-    HAL_TIM_Base_Start(&htim2);
-    // uint32_t freq = 0;
-    // ADC_wait_stable();
+    sweepfreqstate.state=SweepFreqReady;
+    sweepfreqstate.count=0;
+    AD9851_SweepFreq_LineCalc(sweep_start_hz, sweep_stop_hz);
+    // HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t *)adc_buffer.u16, ADC_BUFFER_SIZE);
+    // AD9851_Sweepstart(SweepFreq_value, AD9851_SWEEP_FREQ_COUNT);
+    // HAL_TIM_Base_Start_IT(&htim3);
+    // HAL_TIM_Base_Start(&htim2);
+    
+    // __HAL_TIM_SET_COUNTER(&htim2, 0);
+    // HAL_TIM_Base_Start(&htim2);
     
     
     
     
     
-    while (!g_adc_sample_ready) {
-        __WFI();
-    }
-    g_adc_sample_ready=0;
-    HAL_ADCEx_MultiModeStop_DMA(&hadc1);
-    // uart_send_adc_buffer();
-    HAL_TIM_Base_Stop(&htim2);
-    HAL_TIM_Base_Stop_IT(&htim3);
+    // while (!g_adc_sample_ready) {
+    //     __WFI();
+    // }
+    // g_adc_sample_ready=0;
+    // HAL_ADCEx_MultiModeStop_DMA(&hadc1);
+    // // uart_send_adc_buffer();
+    // HAL_TIM_Base_Stop(&htim2);
+    // HAL_TIM_Base_Stop_IT(&htim3);
 
-    capture_to_spectra();
-    compute_freq_response();
+    // capture_to_spectra();
+    // compute_freq_response();
 
     // 原逻辑里用于限定扫频对应的 FFT bin 范围
-    uint32_t k0 = (uint32_t)ceilf(1000 / BIN_HZ);
-    uint32_t k1 = (uint32_t)floorf(20000 / BIN_HZ);
+    uint32_t k0 = (uint32_t)ceilf((float)sweep_start_hz / BIN_HZ);
+    uint32_t k1 = (uint32_t)floorf((float)sweep_stop_hz / BIN_HZ);
     if (k0 > N_BINS) {
         k0 = N_BINS;
     }
     if (k1 > N_BINS) {
         k1 = N_BINS;
     }
+    freq_response_accum_reset();
     while (1) {
+        if(sweepfreqstate.count<SWEEP_COUNT){
+            if(sweepfreqstate.state == SweepFreqReady){
+                sweepfreqstate.state = SweepFreqStart;
+            }else if(sweepfreqstate.state == SweepFreqStart){
+                sweepfreqstate.state = SweepFreqAct;
+            }else if(sweepfreqstate.state == SweepFreqAct){
+                if(g_adc_sample_ready){
+                    sweepfreqstate.state = SweepFreqCalc;
+                    g_adc_sample_ready = 0;
+                }
+            }else if(sweepfreqstate.state == SweepFreqCalc){
+                sweepfreqstate.state = SweepFreqReady;
+                sweepfreqstate.count++;
+            }
+        }
+        else if(sweepfreqstate.count == SWEEP_COUNT){
+            sweepfreqstate.state=SweepFreqStop;
+        }
 
-        if(adc_ready){
-            adc_ready = 0;
-
-            for (uint32_t i = k0 ;i<=k1;i++){
+        if(sweepfreqstate.state == SweepFreqStart){
+            HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t *)adc_buffer.u16, ADC_BUFFER_SIZE);
+            AD9851_Sweepstart(SweepFreq_value,  AD9851_SWEEP_FREQ_COUNT);
+            // AD9851_set_Frequency(30000);
+            __HAL_TIM_SET_COUNTER(&htim3, 0);
+            __HAL_TIM_SET_COUNTER(&htim2,0);
+            HAL_TIM_Base_Start_IT(&htim3);
+            HAL_TIM_Base_Start(&htim2);
+        }else if(sweepfreqstate.state == SweepFreqCalc){
+            HAL_TIM_Base_Stop(&htim2);
+            HAL_TIM_Base_Stop_IT(&htim3);
+            HAL_ADCEx_MultiModeStop_DMA(&hadc1);
+            if(sweepfreqstate.count == 0){
+                uart_send_adc_buffer();
+            }
+            capture_to_spectra();
+            freq_response_accum_add();
+        }else if(sweepfreqstate.state == SweepFreqStop){
+            compute_freq_response_from_accum();
+            static const uint8_t xy_word[4] = {'X', 'Y', 'R', 'T'};
+            uart_send_raw_frame(xy_word, xy_response_buffer, sizeof(xy_response_buffer));
+            static const uint8_t coh_word[4] = {'C', 'O', 'H', 'T'};
+            uart_send_raw_frame(coh_word, coherence_response, sizeof(coherence_response));
+            for(uint32_t i = k0 ;i<=k1;i++){
                 float freq_mag_db = freq_response_mag_db(i);
                 uint8_t word[4]="FSRT";
                 HAL_UART_Transmit(&huart5, word, 4, 1000);
                 HAL_UART_Transmit(&huart5, (const uint8_t *)&freq_mag_db, sizeof(freq_mag_db),1000);
             }
+            sweepfreqstate.state = SweepFreqReady;
+            sweepfreqstate.count = SWEEP_COUNT + 1U;
         }
     }
 }
@@ -140,7 +184,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 {
     if (hadc->Instance == ADC1) {
         g_adc_sample_ready = true;
-        HAL_TIM_Base_Stop(&htim2);
+        // HAL_TIM_Base_Stop(&htim2);
         // HAL_ADCEx_MultiModeStop_DMA(&hadc1);
         adc_sampling=0;
         adc_ready=1;

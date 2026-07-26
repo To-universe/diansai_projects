@@ -16,7 +16,7 @@ void AD9851_Sweepstart(uint32_t* freq_table,uint16_t length);
 void AD9851_SweepCallback(void);
 void AD9851_SweepStop(void);
 void AD9851_SweepFreq_calc(uint32_t f_start,uint32_t f_end);
-
+void AD9851_SweepFreq_LineCalc(uint32_t f_start,uint32_t f_end);
 
 extern uint32_t SweepFreq_value[AD9851_SWEEP_FREQ_COUNT];
 typedef struct{

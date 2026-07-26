@@ -14,10 +14,17 @@ AdcFftBuffer adc_buffer;
 
 WORKBuffer work;
 
+static q15_t rfft_scratch[RFFT_FULL_Q15_SIZE];
+
+SweepFreqState sweepfreqstate;      //状态机
+
 
 /* H[k]，re/im 交错，bin 0..N_BINS 共 4097 个 */
 float freq_response[ADC_BUFFER_SIZE+2];
-float freq_response_mag[4][ADC_BUFFER_SIZE+2];
+float freq_response_accum[FREQ_ACC_COUNT][N_BINS + 1];
+float xy_response_buffer[2*(ADC_BUFFER_SIZE+2)];
+float coherence_response[N_BINS + 1];
+// float xy_response[SWEEP_COUNT][2*(ADC_BUFFER_SIZE+2)];
 // float xy_response[AD9851_SWEEP_FREQ_COUNT*4];
 
 volatile bool g_adc_sample_ready = false;
@@ -45,12 +52,11 @@ static inline float adc_high_byte_to_float(uint16_t sample)
     return ((float)((sample >> 8) & 0xFFU)) * (1.0f / 256.0f);
 }
 
-/* 解包 CMSIS RFFT 格式：[Re0, Re(N/2), Re1, Im1, ...] */
+/* CMSIS Q15 RFFT writes a full complex spectrum; keep bins 0..N/2. */
 void rfft_get_bin(const q15_t *X, uint32_t k, float *re, float *im)
 {
-    if (k == 0)           { *re = q15_to_f(X[0]);     *im = 0.0f; }
-    else if (k == N_BINS) { *re = q15_to_f(X[1]);     *im = 0.0f; }
-    else                  { *re = q15_to_f(X[2 * k]); *im = q15_to_f(X[2 * k + 1]); }
+    *re = q15_to_f(X[2 * k]);
+    *im = q15_to_f(X[2 * k + 1]);
 }
 
 
@@ -70,33 +76,22 @@ void capture_to_spectra(void)
     const float dac_mean = dac_sum / (float)ADC_BUFFER_SIZE;
     const float sys_mean = sys_sum / (float)ADC_BUFFER_SIZE;
 
-    // 原逻辑：直接把 ADC 码值转成 Q15
     for (uint32_t i = 0; i < ADC_BUFFER_SIZE; i++) {
         float dac = (adc_buffer.u16[i] & 0xFF) * (1.0f / 256.0f) - dac_mean;
         float sys = (adc_buffer.u16[i] >> 8)   * (1.0f / 256.0f) - sys_mean;
         dac_data[i] = (q15_t)(dac * 32768.0f);
         sys_data[i] = (q15_t)(sys * 32768.0f);
     }
-
-    // for (uint32_t i = 0; i < ADC_BUFFER_SIZE; i++) {
-    //     float dac = (adc_buffer.u16[i] & 0xFF) * (1.0f / 256.0f) - dac_mean;
-    //     float sys = (adc_buffer.u16[i] >> 8)   * (1.0f / 256.0f) - sys_mean;
-    //     dac_data[i] = f_to_q15_sat(dac);
-    //     sys_data[i] = f_to_q15_sat(sys);
-    // }
-
     arm_rfft_instance_q15 fft;
     if (arm_rfft_init_q15(&fft, N_FFT, 0, 1) != ARM_MATH_SUCCESS) {
         Error_Handler();   /* 需要 8192 点 Q15 RFFT 表（默认启用） */
     }
 
-    q15_t *scratch = adc_buffer.q15;   /* 原始数据已解包，缓冲区复用 */
+    arm_rfft_q15(&fft, dac_data, rfft_scratch);
+    memcpy(dac_data, rfft_scratch, RFFT_POSITIVE_Q15_SIZE * sizeof(q15_t));
 
-    arm_rfft_q15(&fft, dac_data, scratch);
-    memcpy(dac_data, scratch, sizeof(dac_data));
-
-    arm_rfft_q15(&fft, sys_data, scratch);
-    memcpy(sys_data, scratch, sizeof(sys_data));
+    arm_rfft_q15(&fft, sys_data, rfft_scratch);
+    memcpy(sys_data, rfft_scratch, RFFT_POSITIVE_Q15_SIZE * sizeof(q15_t));
 }
 
 void project_tone_response(uint32_t freq_hz, float *xr, float *xi, float *yr, float *yi)
@@ -170,6 +165,10 @@ void compute_freq_response(void)
         rfft_get_bin(sys_data, k, &yr, &yi);
 
         float d = xr * xr + xi * xi;
+        // xy_response_buffer[4*k]=xr;
+        // xy_response_buffer[4*k+1]=xi;
+        // xy_response_buffer[4*k+2]=yr;
+        // xy_response_buffer[4*k+3]=yi;
         if (d < x_guard2) {
             freq_response[2 * k]     = 0.0f;   /* 无效 bin */
             freq_response[2 * k + 1] = 0.0f;
@@ -183,6 +182,68 @@ void compute_freq_response(void)
 }
 
 /* ---------------- 结果读取 ---------------- */
+
+void freq_response_accum_reset(void)
+{
+    memset(freq_response_accum, 0, sizeof(freq_response_accum));
+}
+
+void freq_response_accum_add(void)
+{
+    for (uint32_t k = 0; k <= N_BINS; k++) {
+        float xr, xi, yr, yi;
+        rfft_get_bin(dac_data, k, &xr, &xi);
+        rfft_get_bin(sys_data, k, &yr, &yi);
+        if(sweepfreqstate.count == 0){
+            xy_response_buffer[4*k]=xr;
+            xy_response_buffer[4*k+1]=xi;
+            xy_response_buffer[4*k+2]=yr;
+            xy_response_buffer[4*k+3]=yi;
+        }
+
+        freq_response_accum[FREQ_ACC_RE][k] += yr * xr + yi * xi;
+        freq_response_accum[FREQ_ACC_IM][k] += yi * xr - yr * xi;
+        freq_response_accum[FREQ_ACC_XX][k] += xr * xr + xi * xi;
+        freq_response_accum[FREQ_ACC_YY][k] += yr * yr + yi * yi;
+    }
+}
+
+void compute_freq_response_from_accum(void)
+{
+    float den_max = 0.0f;
+    for (uint32_t k = 0; k <= N_BINS; k++) {
+        float d = freq_response_accum[FREQ_ACC_XX][k];
+        if (d > den_max) {
+            den_max = d;
+        }
+    }
+
+    const float den_guard = den_max * GUARD_RATIO;
+    for (uint32_t k = 0; k <= N_BINS; k++) {
+        const float d = freq_response_accum[FREQ_ACC_XX][k];
+        const float yy = freq_response_accum[FREQ_ACC_YY][k];
+        const float syx_re = freq_response_accum[FREQ_ACC_RE][k];
+        const float syx_im = freq_response_accum[FREQ_ACC_IM][k];
+        if (d <= 0.0f || d < den_guard) {
+            freq_response[2 * k] = 0.0f;
+            freq_response[2 * k + 1] = 0.0f;
+            coherence_response[k] = 0.0f;
+            continue;
+        }
+
+        freq_response[2 * k] = syx_re / d;
+        freq_response[2 * k + 1] = syx_im / d;
+
+        float coherence = 0.0f;
+        if (yy > 0.0f) {
+            coherence = (syx_re * syx_re + syx_im * syx_im) / (d * yy);
+            if (coherence > 1.0f) {
+                coherence = 1.0f;
+            }
+        }
+        coherence_response[k] = coherence;
+    }
+}
 
 float bin_freq(uint32_t k) { return k * BIN_HZ; }
 

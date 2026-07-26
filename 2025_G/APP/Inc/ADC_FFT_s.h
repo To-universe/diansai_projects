@@ -13,34 +13,56 @@
 
 #define N_FFT                   ADC_BUFFER_SIZE
 #define N_BINS                  (N_FFT/2)
+#define RFFT_FULL_Q15_SIZE      (2 * ADC_BUFFER_SIZE)
+#define RFFT_POSITIVE_Q15_SIZE  (ADC_BUFFER_SIZE + 2)
 
 #define BIN_HZ                  (FS/N_FFT)
 #define GUARD_RATIO             1e-6f
 
 #define dac_data  (work.dac)
 #define sys_data  (work.sys)
+#define  SWEEP_COUNT 16
+#define FREQ_ACC_RE  0
+#define FREQ_ACC_IM  1
+#define FREQ_ACC_XX  2
+#define FREQ_ACC_YY  3
+#define FREQ_ACC_COUNT 4
 
 typedef union {
     uint16_t    u16[ADC_BUFFER_SIZE];
     q15_t       q15[ADC_BUFFER_SIZE];
 } AdcFftBuffer;
-typedef union{
+typedef struct{
     struct {
-        q15_t dac[ADC_BUFFER_SIZE];     /* 参考通道：时域 → 频域 */
-        q15_t sys[ADC_BUFFER_SIZE];     /* 系统输出：时域 → 频域 */
+        q15_t dac[RFFT_POSITIVE_Q15_SIZE];     /* 参考通道：时域 → 正频率复数谱 */
+        q15_t sys[RFFT_POSITIVE_Q15_SIZE];     /* 系统输出：时域 → 正频率复数谱 */
     };
-    float f32[ADC_BUFFER_SIZE];         /* 后期复用：脉冲响应 h[n] */
 }WORKBuffer;
+typedef struct{
+    uint8_t state;
+    uint8_t count;
+} SweepFreqState ;
+#define SweepFreqStart 0
+#define SweepFreqAct 1
+#define SweepFreqCalc 2
+#define SweepFreqReady 3
+#define SweepFreqStop 4
 
 extern AdcFftBuffer adc_buffer;
 extern WORKBuffer work;
+extern SweepFreqState sweepfreqstate;
 extern volatile bool g_adc_sample_ready;
 extern float freq_response[ADC_BUFFER_SIZE+2];
-extern float freq_response_mag[4][ADC_BUFFER_SIZE+2];
-// extern float xy_response[AD9851_SWEEP_FREQ_COUNT*4];
+extern float freq_response_accum[FREQ_ACC_COUNT][N_BINS + 1];
+extern float xy_response_buffer[2*(ADC_BUFFER_SIZE+2)];
+extern float coherence_response[N_BINS + 1];
+
 
 void capture_to_spectra(void);
 void compute_freq_response(void);
+void freq_response_accum_reset(void);
+void freq_response_accum_add(void);
+void compute_freq_response_from_accum(void);
 float bin_freq(uint32_t k);
 float freq_response_mag_db(uint32_t k);
 float freq_response_phase_deg(uint32_t k);
