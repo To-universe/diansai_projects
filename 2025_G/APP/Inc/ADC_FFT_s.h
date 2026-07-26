@@ -26,7 +26,7 @@
 #define FREQ_ACC_IM  1
 #define FREQ_ACC_XX  2
 #define FREQ_ACC_YY  3
-#define FREQ_ACC_COUNT 4
+#define FREQ_ACC_COUNT 3
 
 typedef union {
     uint16_t    u16[ADC_BUFFER_SIZE];
@@ -55,7 +55,6 @@ extern volatile bool g_adc_sample_ready;
 extern float freq_response[ADC_BUFFER_SIZE+2];
 extern float freq_response_accum[FREQ_ACC_COUNT][N_BINS + 1];
 extern float xy_response_buffer[2*(ADC_BUFFER_SIZE+2)];
-extern float coherence_response[N_BINS + 1];
 
 
 void capture_to_spectra(void);
@@ -68,5 +67,6 @@ float freq_response_mag_db(uint32_t k);
 float freq_response_phase_deg(uint32_t k);
 void rfft_get_bin(const q15_t *X, uint32_t k, float *re, float *im);
 void project_tone_response(uint32_t freq_hz, float *xr, float *xi, float *yr, float *yi);
+void freq_response_filter(void);
 
 #endif

@@ -156,8 +156,7 @@ void app_main(void)
             compute_freq_response_from_accum();
             static const uint8_t xy_word[4] = {'X', 'Y', 'R', 'T'};
             uart_send_raw_frame(xy_word, xy_response_buffer, sizeof(xy_response_buffer));
-            static const uint8_t coh_word[4] = {'C', 'O', 'H', 'T'};
-            uart_send_raw_frame(coh_word, coherence_response, sizeof(coherence_response));
+            freq_response_filter();
             for(uint32_t i = k0 ;i<=k1;i++){
                 float freq_mag_db = freq_response_mag_db(i);
                 uint8_t word[4]="FSRT";

@@ -21,9 +21,9 @@ SweepFreqState sweepfreqstate;      //状态机
 
 /* H[k]，re/im 交错，bin 0..N_BINS 共 4097 个 */
 float freq_response[ADC_BUFFER_SIZE+2];
+float freq_response_smooth[ADC_BUFFER_SIZE+2];
 float freq_response_accum[FREQ_ACC_COUNT][N_BINS + 1];
 float xy_response_buffer[2*(ADC_BUFFER_SIZE+2)];
-float coherence_response[N_BINS + 1];
 // float xy_response[SWEEP_COUNT][2*(ADC_BUFFER_SIZE+2)];
 // float xy_response[AD9851_SWEEP_FREQ_COUNT*4];
 
@@ -204,7 +204,6 @@ void freq_response_accum_add(void)
         freq_response_accum[FREQ_ACC_RE][k] += yr * xr + yi * xi;
         freq_response_accum[FREQ_ACC_IM][k] += yi * xr - yr * xi;
         freq_response_accum[FREQ_ACC_XX][k] += xr * xr + xi * xi;
-        freq_response_accum[FREQ_ACC_YY][k] += yr * yr + yi * yi;
     }
 }
 
@@ -221,27 +220,17 @@ void compute_freq_response_from_accum(void)
     const float den_guard = den_max * GUARD_RATIO;
     for (uint32_t k = 0; k <= N_BINS; k++) {
         const float d = freq_response_accum[FREQ_ACC_XX][k];
-        const float yy = freq_response_accum[FREQ_ACC_YY][k];
         const float syx_re = freq_response_accum[FREQ_ACC_RE][k];
         const float syx_im = freq_response_accum[FREQ_ACC_IM][k];
         if (d <= 0.0f || d < den_guard) {
             freq_response[2 * k] = 0.0f;
             freq_response[2 * k + 1] = 0.0f;
-            coherence_response[k] = 0.0f;
             continue;
         }
 
         freq_response[2 * k] = syx_re / d;
         freq_response[2 * k + 1] = syx_im / d;
 
-        float coherence = 0.0f;
-        if (yy > 0.0f) {
-            coherence = (syx_re * syx_re + syx_im * syx_im) / (d * yy);
-            if (coherence > 1.0f) {
-                coherence = 1.0f;
-            }
-        }
-        coherence_response[k] = coherence;
     }
 }
 
@@ -249,7 +238,7 @@ float bin_freq(uint32_t k) { return k * BIN_HZ; }
 
 float freq_response_mag_db(uint32_t k)
 {
-    float re = freq_response[2 * k], im = freq_response[2 * k + 1];
+    float re = freq_response_smooth[2 * k], im = freq_response_smooth[2 * k + 1];
     return 10.0f * log10f(re * re + im * im + 1e-12f);   /* 20·log10|H| */
 }
 
@@ -257,4 +246,17 @@ float freq_response_phase_deg(uint32_t k)
 {
     return atan2f(freq_response[2 * k + 1], freq_response[2 * k])
            * (180.0f / 3.14159265358979f);
+}
+
+
+void freq_response_filter(void){
+    for(uint32_t i = 0 ; i < N_BINS+1;i++){
+        if(i == 0 || i == N_BINS){
+            freq_response_smooth[2*i] = freq_response[2*i];
+            freq_response_smooth[2*i+1] = freq_response[2*i+1];
+        }else{
+            freq_response_smooth[2*i] = (freq_response[2*(i-1)]+freq_response[2*i]+freq_response[2*(i+1)])/3.0;
+            freq_response_smooth[2*i+1] = (freq_response[2*(i-1)+1]+freq_response[2*i+1]+freq_response[2*(i+1)+1])/3.0;
+        }
+    }
 }
