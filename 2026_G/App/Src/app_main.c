@@ -347,7 +347,7 @@ void update_state(app_ctx_t* ctx){
                 // g_tft_data.flag == 1
             ) {
                 ctx->state = STATE_CALIBRATING;
-            } else {
+            } else if (g_tft_data.measure == 1) {
                 ctx->state = STATE_MEASURE;
             }
             break;
@@ -376,9 +376,14 @@ void state_act(app_ctx_t* ctx){
             //加入校准相关代码
             calibration_start();
 
+
+            LCD_SetTextEx(0, 7, "\xD0\xA3\xD1\xE9\xCD\xEA\xB3\xC9");
+            g_tft_data.flag = 0;  /*校准完成*/
             break;
         case STATE_MEASURE:
             state_calculation(ctx);
+            LCD_SetTextEx(0, 7, "\xB2\xE2\xC1\xBF\xCD\xEA\xB3\xC9");
+            g_tft_data.measure = 0;  /*测量完成*/
             break;
         case STATE_DISPLAY:
             state_display(ctx);

@@ -22,7 +22,7 @@ typedef struct {
     uint8_t  spec_updated;
 
     uint8_t  flag;
-    uint8_t  display;
+    uint8_t  measure;
 
 } TFT_Data_t;
 

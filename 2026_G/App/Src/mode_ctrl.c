@@ -16,6 +16,7 @@ void Mode_OnButton(uint8_t data) {
     if (data == BTN_DATA_SPEC)  g_mode = MODE_SPECTRUM;
     if (data == 0xA3)           g_mode = MODE_IDLE;
     if (data == 0xA4)           g_tft_data.flag = 1;  /*校准开启*/
+    if (data == 0xA5)           g_tft_data.measure = 1;  /*测量开始*/
 }
 
 static void Mode_Waveform_Run(void) {
