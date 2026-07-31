@@ -1,10 +1,31 @@
 #include "calibration_vpp.h"
 #include "arm_math_types.h"
+#include "dac.h"
+#include "fpga.h"
+#include "main.h"
+#include "opamp.h"
+#include "stm32g4xx_hal.h"
+#include "stm32g4xx_hal_adc.h"
+#include "stm32g4xx_hal_dac.h"
+#include "stm32g4xx_hal_def.h"
+#include "stm32g4xx_hal_opamp.h"
+#include "stm32g4xx_hal_tim.h"
+#include "tim.h"
+#include "voltage.h"
 #include <math.h>
 #include <stdint.h>
+#include "dac_sine_lut.h"
+
+#define SAMPLE_CAL_REF_VPP          0.200f
+#define SAMPLE_CAL_DISCARD_COUNT    1U
+#define SAMPLE_CAL_FRAME_COUNT      5U
+#define SAMPLE_CAL_CAPTURE_TIMEOUT  1000U
+#define SAMPLE_CAL_MIN_RAW_VPP      1.0f
 
 static vpp_cal_table_t g_vpp_cal;
 static uint8_t g_vpp_cal_enabled = 1U;
+static float32_t g_sample_cal_raw_vpp_mean = 0.0f;
+static float32_t g_sample_cal_to_volt = 0.0f;
 
 static const float32_t freq_hz_init[VPP_CAL_MAX_POINTS] = {10000.000000f,
     13000.000000f,
@@ -127,4 +148,119 @@ float32_t cal_corr(float32_t f){
     }
 
     return g_vpp_cal.gain_corr[last];
+}
+
+static uint8_t get_max_min(const int16_t *buffer, uint32_t len,
+                           int16_t *max_out, int16_t *min_out)
+{
+    if (buffer == NULL || max_out == NULL || min_out == NULL || len == 0U) {
+        return 0U;
+    }
+
+    int16_t max_v = buffer[0];
+    int16_t min_v = buffer[0];
+
+    for (uint32_t i = 1U; i < len; i++) {
+        int16_t value = buffer[i];
+
+        if (value > max_v) {
+            max_v = value;
+        }
+        if (value < min_v) {
+            min_v = value;
+        }
+    }
+
+    *max_out = max_v;
+    *min_out = min_v;
+    return 1U;
+}
+
+static uint8_t fpga_capture_frame(void)
+{
+    uint32_t start_tick = HAL_GetTick();
+
+    fpga_clear_data_ready();
+    fpga_start_capture();
+
+    while (!fpga_is_data_ready()) {
+        if ((HAL_GetTick() - start_tick) > SAMPLE_CAL_CAPTURE_TIMEOUT) {
+            return 0U;
+        }
+    }
+
+    return fpga_receive();
+}
+
+void calibration_start(void){
+    voltage_set_sample_to_volt(1.0);
+    
+
+
+    // HAL_DAC_SetValue(&hdac3, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048);
+    
+    if(HAL_OPAMP_Start(&hopamp1)!=HAL_OK){
+        Error_Handler();
+    }
+    if (
+        // HAL_DAC_Start(&hdac3, DAC_CHANNEL_1)
+        HAL_DAC_Start_DMA(&hdac3,
+                          DAC_CHANNEL_1,
+                          (uint32_t *)dac3_sine_10k_200mvpp_lut,
+                          DAC_SINE_10K_POINTS,
+                          DAC_ALIGN_12B_R) 
+                          != HAL_OK) {
+        Error_Handler();
+        return;
+    }
+    if (HAL_TIM_Base_Start(&htim6) != HAL_OK) {
+        Error_Handler();
+        return;
+    }
+    
+    while (1) {
+    
+    }
+
+    HAL_TIM_Base_Stop(&htim6);
+    HAL_DAC_Stop_DMA(&hdac3, DAC_CHANNEL_1);
+    return;
+
+    float32_t raw_vpp_sum = 0.0f;
+    uint8_t valid_count = 0U;
+
+    for (uint8_t i = 0U; i < SAMPLE_CAL_DISCARD_COUNT + SAMPLE_CAL_FRAME_COUNT; i++) {
+        if (!fpga_capture_frame()) {
+            Error_Handler();
+            return;
+        }
+
+        if (i < SAMPLE_CAL_DISCARD_COUNT) {
+            continue;
+        }
+
+        int16_t max_v = 0;
+        int16_t min_v = 0;
+        if (!get_max_min(fpga_get_buffer(), FPGA_SAMPLE_COUNT, &max_v, &min_v)) {
+            Error_Handler();
+            return;
+        }
+
+        float32_t raw_vpp = (float32_t)((int32_t)max_v - (int32_t)min_v);
+        if (raw_vpp > SAMPLE_CAL_MIN_RAW_VPP) {
+            raw_vpp_sum += raw_vpp;
+            valid_count++;
+        }
+
+        HAL_Delay(20U);
+    }
+
+    if (valid_count == 0U) {
+        Error_Handler();
+        return;
+    }
+
+    g_sample_cal_raw_vpp_mean = raw_vpp_sum / (float32_t)valid_count;
+    g_sample_cal_to_volt = SAMPLE_CAL_REF_VPP / g_sample_cal_raw_vpp_mean;
+    voltage_set_sample_to_volt(g_sample_cal_to_volt);
 }

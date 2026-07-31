@@ -24,6 +24,8 @@ typedef struct {
     float32_t waveform[WAVEFORM_SIZE];
 } vol_result_t;
 
+float32_t voltage_get_sample_to_volt(void);
+void voltage_set_sample_to_volt(float32_t k);
 void voltage_compute(const int16_t *fpga_data, const fft_result_t *fft, vol_result_t *result);
 
 #endif
