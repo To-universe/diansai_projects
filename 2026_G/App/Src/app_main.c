@@ -38,9 +38,9 @@ typedef struct {
     float32_t vpp_mean;
     float32_t f0;
     float32_t f0_used;
-    float32_t harmonic_means[3];
-    uint8_t  valid_counts[3];
-    uint8_t  harmonic_orders[3];
+    float32_t harmonic_means[PEAK_MAX_COUNT];
+    uint8_t  valid_counts[PEAK_MAX_COUNT];
+    uint8_t  harmonic_orders[PEAK_MAX_COUNT];
     uint8_t  harmonic_order_count;
     float32_t waveform[WAVEFORM_SIZE];
     float32_t waveform_3_cycles[WAVEFORM_SIZE];
@@ -156,8 +156,13 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
     float32_t center = 0.5f * (max_v + min_v);
     float32_t half_range = 0.5f * (max_v - min_v);
     if (half_range < 1.0e-9f) {
+<<<<<<< HEAD
         // memset(dst, 0, len);    /* original: flat �� Y=0 (top) */
         memset(dst, 128, len);    /* FIX: flat �� Y=128 (center) */
+=======
+        // memset(dst, 0, len);    /* original: flat �� Y=0 (top) */
+        memset(dst, 128, len);    /* FIX: flat �� Y=128 (center) */
+>>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
         return;
     }
 
@@ -169,6 +174,7 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
             norm = -1.0f;
         }
 
+<<<<<<< HEAD
 #if 0  /* ----- original Q7 signed mapping [-128,127], caused split waveform ----- */
         float32_t scaled = (norm >= 0.0f) ? (norm * 127.0f) : (norm * 128.0f);
         int32_t q = (scaled >= 0.0f) ? (int32_t)(scaled + 0.5f) : (int32_t)(scaled - 0.5f);
@@ -184,6 +190,8 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
         /*       norm = -1  ��  0   (bottom)                                     */
         /*       norm =  0  ��  128 (center)                                     */
         /*       norm = +1  ��  255 (top)                                        */
+=======
+>>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
         float32_t scaled = (norm + 1.0f) * 127.5f;
         int32_t q = (int32_t)(scaled + 0.5f);
         if (q > 255) {
@@ -191,7 +199,10 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
         } else if (q < 0) {
             q = 0;
         }
+<<<<<<< HEAD
         dst[k] = (uint8_t)q;
+=======
+>>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
         dst[k] = (uint8_t)q;
     }
 }
@@ -240,10 +251,12 @@ static void state_calculation(app_ctx_t *ctx)
     calc_finalize(&ctx->acc,
                   &ctx->vrms_mean, &ctx->vpp_mean, &f0_mean,
                   ctx->harmonic_means, ctx->valid_counts,
+                  ctx->harmonic_orders, &ctx->harmonic_order_count,
                   waveform_mean);
 
     ctx->f0 = ctx->acc.f0;
     ctx->f0_used = f0_mean;
+<<<<<<< HEAD
     /* FIX: compute harmonic_order_count and orders from valid_counts
      *      (was hardcoded to 0, causing empty spectrum bars) */
     ctx->harmonic_order_count = 0U;
@@ -253,6 +266,8 @@ static void state_calculation(app_ctx_t *ctx)
             ctx->harmonic_order_count++;
         }
     }
+=======
+>>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
     for (uint16_t k = 0U; k < WAVEFORM_SIZE; k++) {
         ctx->waveform[k] = waveform_mean[k];
         uint16_t idx = (3*k)%WAVEFORM_SIZE;
@@ -300,10 +315,11 @@ static void show(app_ctx_t *ctx)
     }
 
     printf("\r\nHarmonics:\r\n");
-    for (uint8_t i = 1U; i < VOL_AMP_BY_ORDER_SIZE; i++) {
-        if (ctx->valid_counts[i] > 0U) {
-            printf("  H%-2u : ", i);
-            print_f32((float32_t)i * ctx->f0, 8, 2);
+    for (uint8_t i = 0U; i < ctx->harmonic_order_count && i < PEAK_MAX_COUNT; i++) {
+        uint8_t order = ctx->harmonic_orders[i];
+        if (order > 0U && ctx->valid_counts[i] > 0U) {
+            printf("  H%-2u : ", order);
+            print_f32((float32_t)order * ctx->f0, 8, 2);
             printf(" Hz  ");
             print_f32(ctx->harmonic_means[i], 8, 4);
             printf(" V  (valid %u/%u)\r\n",
@@ -341,12 +357,12 @@ void update_state(app_ctx_t* ctx){
     switch (ctx->state) {
         case STATE_IDLE:
             if(ctx->calibration_mode){
-                //当校准信号发�?
+                //当校准信号发�?
             ){
                 ctx->state = STATE_CALIBRATING;
             }
             else if(0){
-                //当计算信号发�?
+                //当计算信号发�?
             ){
                 ctx->state = STATE_MEASURE;
             }else{

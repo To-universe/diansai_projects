@@ -10,7 +10,9 @@
 typedef struct {
     float32_t vrms[CALC_FRAME_COUNT];
     float32_t vpp[CALC_FRAME_COUNT];
-    float32_t harmonic_amps[CALC_FRAME_COUNT][VOL_AMP_BY_ORDER_SIZE];
+    float32_t harmonic_amps[CALC_FRAME_COUNT][PEAK_MAX_COUNT];
+    uint8_t   harmonic_orders[CALC_FRAME_COUNT][PEAK_MAX_COUNT];
+    uint8_t   harmonic_order_count[CALC_FRAME_COUNT];
     float32_t f0;
     float32_t f0_used[CALC_FRAME_COUNT];
     float32_t waveform[CALC_FRAME_COUNT][WAVEFORM_SIZE];
@@ -25,6 +27,8 @@ void calc_finalize(const calc_accumulator_t *acc,
                    float32_t *f0_mean,
                    float32_t *harmonic_means,
                    uint8_t  *valid_counts,
+                   uint8_t  *harmonic_orders,
+                   uint8_t  *harmonic_order_count,
                    float32_t *waveform_mean);
 
 #endif
