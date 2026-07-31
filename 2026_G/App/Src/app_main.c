@@ -156,7 +156,12 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
     float32_t center = 0.5f * (max_v + min_v);
     float32_t half_range = 0.5f * (max_v - min_v);
     if (half_range < 1.0e-9f) {
+<<<<<<< HEAD
         memset(dst, 128, len);
+=======
+        // memset(dst, 0, len);    /* original: flat �� Y=0 (top) */
+        memset(dst, 128, len);    /* FIX: flat �� Y=128 (center) */
+>>>>>>> 01541084695938ab65c43be97d75e1089af3e852
         return;
     }
 
@@ -168,6 +173,7 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
             norm = -1.0f;
         }
 
+<<<<<<< HEAD
         float32_t scaled = (norm + 1.0f) * 127.5f;
         int32_t q = (int32_t)(scaled + 0.5f);
         if (q > 255) {
@@ -175,6 +181,30 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
         } else if (q < 0) {
             q = 0;
         }
+=======
+#if 0  /* ----- original Q7 signed mapping [-128,127], caused split waveform ----- */
+        float32_t scaled = (norm >= 0.0f) ? (norm * 127.0f) : (norm * 128.0f);
+        int32_t q = (scaled >= 0.0f) ? (int32_t)(scaled + 0.5f) : (int32_t)(scaled - 0.5f);
+        if (q > 127) {
+            q = 127;
+        } else if (q < -128) {
+            q = -128;
+        }
+        dst[k] = (uint8_t)((int8_t)q);
+#endif
+
+        /* ---- FIX: Map [-1, 1] to [0, 255] (unsigned LCD Y-coord) ------------- */
+        /*       norm = -1  ��  0   (bottom)                                     */
+        /*       norm =  0  ��  128 (center)                                     */
+        /*       norm = +1  ��  255 (top)                                        */
+        float32_t scaled = (norm + 1.0f) * 127.5f;
+        int32_t q = (int32_t)(scaled + 0.5f);
+        if (q > 255) {
+            q = 255;
+        } else if (q < 0) {
+            q = 0;
+        }
+>>>>>>> 01541084695938ab65c43be97d75e1089af3e852
         dst[k] = (uint8_t)q;
     }
 }
@@ -316,12 +346,12 @@ void update_state(app_ctx_t* ctx){
     switch (ctx->state) {
         case STATE_IDLE:
             if(ctx->calibration_mode){
-                //当校准信号发出
+                //当校准信号发�?
             ){
                 ctx->state = STATE_CALIBRATING;
             }
             else if(0){
-                //当计算信号发出
+                //当计算信号发�?
             ){
                 ctx->state = STATE_MEASURE;
             }else{
