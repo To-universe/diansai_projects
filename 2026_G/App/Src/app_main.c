@@ -307,6 +307,7 @@ static void show(app_ctx_t *ctx)
 void state_display(app_ctx_t* ctx){
     Data_Feed_Waveform(ctx->waveform_u8, ctx->waveform_3_cycles_u8,(float)ctx->vpp_mean, (float)ctx->vrms_mean, ctx->f0);
     Data_Feed_Spectrum((float)ctx->harmonic_means[0],ctx->harmonic_orders[1], (float32_t)ctx->harmonic_means[1],ctx->harmonic_orders[2],(float)ctx->harmonic_means[2], ctx->harmonic_order_count,(float)ctx->f0);
+
 }
 
 //state transition
@@ -374,6 +375,7 @@ void state_act(app_ctx_t* ctx){
             break;
         case STATE_CALIBRATING:
             //加入校准相关代码
+            
             calibration_start();
 
 
