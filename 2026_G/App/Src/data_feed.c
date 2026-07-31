@@ -16,9 +16,10 @@ void Data_Feed_Waveform(uint8_t *wave1, uint8_t *wave3,
     memcpy(g_tft_data.wave_1c, wave1, 960);
     memcpy(g_tft_data.wave_3c, wave3, 960);
 
-    /* FIX: newlib-nano drops %%f, use %%d with manual rounding */
-    sprintf(g_tft_data.upp,  "Upp=%dmV",  (int)(upp + 0.5f));
-    sprintf(g_tft_data.urms, "Urms=%dmV", (int)(urms + 0.5f));
+    /* FIX: newlib-nano drops %%f, use %%d with manual rounding.
+     *      upp/urms are in VOLTS from voltage_compute → convert to mV (*1000) */
+    sprintf(g_tft_data.upp,  "Upp=%dmV",  (int)(upp  * 1000.0f + 0.5f));
+    sprintf(g_tft_data.urms, "Urms=%dmV", (int)(urms * 1000.0f + 0.5f));
     fmt_khz(g_tft_data.freq, "f=", freq);
 
     g_tft_data.wave_updated = 1;
@@ -33,7 +34,7 @@ void Data_Feed_Spectrum(float   base_amp,
     g_tft_data.sp_freq_val[0] = (uint32_t)base_freq;
     g_tft_data.sp_amp_val[0]  = base_amp;
     fmt_khz(g_tft_data.sp_freq[0], "", (uint32_t)base_freq);
-    sprintf(g_tft_data.sp_amp[0],  "%dmV",  (int)(base_amp + 0.5f));
+    sprintf(g_tft_data.sp_amp[0],  "%dmV",  (int)(base_amp * 1000.0f + 0.5f));
 
     /* 谐波1 */
     if (count >= 2) {
@@ -41,7 +42,7 @@ void Data_Feed_Spectrum(float   base_amp,
         g_tft_data.sp_freq_val[1] = f1;
         g_tft_data.sp_amp_val[1]  = h1_amp;
         fmt_khz(g_tft_data.sp_freq[1], "", f1);
-        sprintf(g_tft_data.sp_amp[1],  "%dmV",  (int)(h1_amp + 0.5f));
+        sprintf(g_tft_data.sp_amp[1],  "%dmV",  (int)(h1_amp * 1000.0f + 0.5f));
     } else {
         g_tft_data.sp_freq_val[1] = 0;
         g_tft_data.sp_amp_val[1]  = 0.0f;
@@ -53,7 +54,7 @@ void Data_Feed_Spectrum(float   base_amp,
         g_tft_data.sp_freq_val[2] = f2;
         g_tft_data.sp_amp_val[2]  = h2_amp;
         fmt_khz(g_tft_data.sp_freq[2], "", f2);
-        sprintf(g_tft_data.sp_amp[2],  "%dmV",  (int)(h2_amp + 0.5f));
+        sprintf(g_tft_data.sp_amp[2],  "%dmV",  (int)(h2_amp * 1000.0f + 0.5f));
     } else {
         g_tft_data.sp_freq_val[2] = 0;
         g_tft_data.sp_amp_val[2]  = 0.0f;
