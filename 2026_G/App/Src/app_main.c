@@ -156,13 +156,8 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
     float32_t center = 0.5f * (max_v + min_v);
     float32_t half_range = 0.5f * (max_v - min_v);
     if (half_range < 1.0e-9f) {
-<<<<<<< HEAD
-        // memset(dst, 0, len);    /* original: flat �� Y=0 (top) */
-        memset(dst, 128, len);    /* FIX: flat �� Y=128 (center) */
-=======
-        // memset(dst, 0, len);    /* original: flat �� Y=0 (top) */
-        memset(dst, 128, len);    /* FIX: flat �� Y=128 (center) */
->>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
+        // memset(dst, 0, len);    /* original: flat -> Y=0 (top) */
+        memset(dst, 128, len);    /* FIX: flat -> Y=128 (center) */
         return;
     }
 
@@ -174,7 +169,6 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
             norm = -1.0f;
         }
 
-<<<<<<< HEAD
 #if 0  /* ----- original Q7 signed mapping [-128,127], caused split waveform ----- */
         float32_t scaled = (norm >= 0.0f) ? (norm * 127.0f) : (norm * 128.0f);
         int32_t q = (scaled >= 0.0f) ? (int32_t)(scaled + 0.5f) : (int32_t)(scaled - 0.5f);
@@ -190,8 +184,6 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
         /*       norm = -1  ��  0   (bottom)                                     */
         /*       norm =  0  ��  128 (center)                                     */
         /*       norm = +1  ��  255 (top)                                        */
-=======
->>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
         float32_t scaled = (norm + 1.0f) * 127.5f;
         int32_t q = (int32_t)(scaled + 0.5f);
         if (q > 255) {
@@ -199,10 +191,7 @@ static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t l
         } else if (q < 0) {
             q = 0;
         }
-<<<<<<< HEAD
         dst[k] = (uint8_t)q;
-=======
->>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
         dst[k] = (uint8_t)q;
     }
 }
@@ -256,7 +245,6 @@ static void state_calculation(app_ctx_t *ctx)
 
     ctx->f0 = ctx->acc.f0;
     ctx->f0_used = f0_mean;
-<<<<<<< HEAD
     /* FIX: compute harmonic_order_count and orders from valid_counts
      *      (was hardcoded to 0, causing empty spectrum bars) */
     ctx->harmonic_order_count = 0U;
@@ -266,8 +254,6 @@ static void state_calculation(app_ctx_t *ctx)
             ctx->harmonic_order_count++;
         }
     }
-=======
->>>>>>> a889fb9f9dce07f8117ff5bbeae17fbf0bc90011
     for (uint16_t k = 0U; k < WAVEFORM_SIZE; k++) {
         ctx->waveform[k] = waveform_mean[k];
         uint16_t idx = (3*k)%WAVEFORM_SIZE;
@@ -357,12 +343,12 @@ void update_state(app_ctx_t* ctx){
     switch (ctx->state) {
         case STATE_IDLE:
             if(ctx->calibration_mode){
-                //当校准信号发�?
+                //当校准信号发�?
             ){
                 ctx->state = STATE_CALIBRATING;
             }
             else if(0){
-                //当计算信号发�?
+                //当计算信号发�?
             ){
                 ctx->state = STATE_MEASURE;
             }else{
