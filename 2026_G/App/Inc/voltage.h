@@ -3,6 +3,7 @@
 
 #include "arm_math_types.h"
 #include "fft.h"
+#include <stdint.h>
 
 #define METRIC_SIZE             4000U
 #define ADC_VREF                3.3f
@@ -18,9 +19,9 @@ typedef struct {
     float32_t f0;
     float32_t f0_used;
     float32_t dc_offset;
-    float32_t harmonic_amps[3];
-    float32_t harmonic_order_count;
-    float32_t harmonic_orders[3];
+    float32_t harmonic_amps[PEAK_MAX_COUNT];
+    uint8_t harmonic_order_count;
+    uint8_t harmonic_orders[PEAK_MAX_COUNT];
     float32_t waveform[WAVEFORM_SIZE];
 } vol_result_t;
 

@@ -262,12 +262,7 @@ void calibration_start(void){
     g_sample_cal_to_volt = SAMPLE_CAL_REF_VPP / g_sample_cal_raw_vpp_mean;
     voltage_set_sample_to_volt(g_sample_cal_to_volt);
 
-<<<<<<< HEAD
     HAL_TIM_Base_Stop(&htim6);
     HAL_DAC_Stop_DMA(&hdac2, DAC_CHANNEL_1);
-=======
-    // HAL_TIM_Base_Stop(&htim6);
-    // HAL_DAC_Stop_DMA(&hdac3, DAC_CHANNEL_1);
->>>>>>> 01541084695938ab65c43be97d75e1089af3e852
 }
 
