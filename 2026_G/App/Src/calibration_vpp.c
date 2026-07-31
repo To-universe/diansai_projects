@@ -194,10 +194,17 @@ static uint8_t fpga_capture_frame(void)
 
 void calibration_start(void){
     voltage_set_sample_to_volt(1.0);
-    
+   HAL_TIM_Base_Stop(&htim6);
+    HAL_DAC_Stop_DMA(&hdac3, DAC_CHANNEL_1);
+
+    __HAL_DAC_CLEAR_FLAG(&hdac3, DAC_FLAG_DMAUDR1);
+    __HAL_TIM_CLEAR_FLAG(&htim6, TIM_FLAG_UPDATE);
+    __HAL_TIM_SET_COUNTER(&htim6, 0U);
+
+    hdac3.ErrorCode = HAL_DAC_ERROR_NONE;
 
 
-    // HAL_DAC_SetValue(&hdac3, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048);
+    HAL_DAC_SetValue(&hdac3, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048);
     
     if(HAL_OPAMP_Start(&hopamp1)!=HAL_OK){
         Error_Handler();
@@ -206,10 +213,11 @@ void calibration_start(void){
         // HAL_DAC_Start(&hdac3, DAC_CHANNEL_1)
         HAL_DAC_Start_DMA(&hdac3,
                           DAC_CHANNEL_1,
-                          (uint32_t *)dac3_sine_10k_200mvpp_lut,
-                          DAC_SINE_10K_POINTS,
+                          (uint32_t *)dac3_sine_10k_200mvpp_400pt_lut,
+                          DAC_SINE_10K_400_POINTS,
                           DAC_ALIGN_12B_R) 
-                          != HAL_OK) {
+                          != HAL_OK
+                        ) {
         Error_Handler();
         return;
     }
@@ -263,3 +271,4 @@ void calibration_start(void){
     HAL_TIM_Base_Stop(&htim6);
     HAL_DAC_Stop_DMA(&hdac3, DAC_CHANNEL_1);
 }
+
