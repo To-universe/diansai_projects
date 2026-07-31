@@ -18,4 +18,7 @@ void vpp_cal_set_enabled(uint8_t enabled);
 uint8_t vpp_cal_is_enabled(void);
 float32_t cal_corr(float32_t f);
 
+
+void calibration_start(void);
+
 #endif

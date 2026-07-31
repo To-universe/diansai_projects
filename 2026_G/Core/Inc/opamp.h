@@ -1,9 +1,9 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file    tim.h
+  * @file    opamp.h
   * @brief   This file contains all the function prototypes for
-  *          the tim.c file
+  *          the opamp.c file
   ******************************************************************************
   * @attention
   *
@@ -18,8 +18,8 @@
   */
 /* USER CODE END Header */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __TIM_H__
-#define __TIM_H__
+#ifndef __OPAMP_H__
+#define __OPAMP_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,16 +32,13 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern TIM_HandleTypeDef htim3;
-
-extern TIM_HandleTypeDef htim6;
+extern OPAMP_HandleTypeDef hopamp1;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_TIM3_Init(void);
-void MX_TIM6_Init(void);
+void MX_OPAMP1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 
@@ -51,5 +48,5 @@ void MX_TIM6_Init(void);
 }
 #endif
 
-#endif /* __TIM_H__ */
+#endif /* __OPAMP_H__ */
 

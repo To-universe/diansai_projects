@@ -6,6 +6,7 @@
 #include "fft.h"
 #include "fpga.h"
 #include "uart_printf.h"
+#include "usart.h"
 #include "voltage.h"
 #include "main.h"
 #include "stm32g4xx_hal.h"
@@ -342,7 +343,9 @@ void update_state(app_ctx_t* ctx){
 void update_state(app_ctx_t* ctx){
     switch (ctx->state) {
         case STATE_IDLE:
-            if (g_tft_data.flag == 1) {
+            if (1
+                // g_tft_data.flag == 1
+            ) {
                 ctx->state = STATE_CALIBRATING;
             } else {
                 ctx->state = STATE_MEASURE;
@@ -360,6 +363,8 @@ void update_state(app_ctx_t* ctx){
         case STATE_SCREEN_TIME:
         case STATE_SCREEN_FREQ:
             break;
+        default:
+            ctx->state = STATE_IDLE;
     }
 }
 //state actions
@@ -369,6 +374,8 @@ void state_act(app_ctx_t* ctx){
             break;
         case STATE_CALIBRATING:
             //加入校准相关代码
+            calibration_start();
+
             break;
         case STATE_MEASURE:
             state_calculation(ctx);
@@ -396,6 +403,9 @@ void app_main(void)
     ctx.state = STATE_IDLE;
     ctx.calibration_mode = false;
     calc_init(&ctx.acc);
+
+    // HAL_OPAMP_Start(&huart5);
+    // HAL_DAC_Start_DMA(&, uint32_t Channel, const uint32_t *pData, uint32_t Length, uint32_t Alignment)
 
     while (1) {
         // process_input(&ctx);

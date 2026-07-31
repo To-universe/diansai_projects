@@ -9,6 +9,20 @@
 
 #define LS_MAX_DIM      (1U + 2U * PEAK_MAX_COUNT)
 
+static float32_t g_sample_to_volt = 4.383015e-6f;
+
+float32_t voltage_get_sample_to_volt(void)
+{
+    return g_sample_to_volt;
+}
+
+void voltage_set_sample_to_volt(float32_t k)
+{
+    if (k > 0.0f) {
+        g_sample_to_volt = k;
+    }
+}
+
 static uint8_t solve_linear_system(float32_t a[LS_MAX_DIM][LS_MAX_DIM],
                                     float32_t b[LS_MAX_DIM],
                                     float32_t x[LS_MAX_DIM],
@@ -213,7 +227,7 @@ void voltage_compute(const int16_t *fpga_data, const fft_result_t *fft, vol_resu
         result->f0_used = fft->fitted_f0;
     }
 
-    float32_t sample_to_volt = 4.383015e-6f;
+    float32_t sample_to_volt = g_sample_to_volt;
     //
     float32_t I[PEAK_MAX_COUNT] = {0.0f};
     float32_t Q[PEAK_MAX_COUNT] = {0.0f};

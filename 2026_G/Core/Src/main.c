@@ -19,7 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "dac.h"
 #include "dma.h"
+#include "opamp.h"
 #include "spi.h"
 #include "tim.h"
 #include "usart.h"
@@ -98,6 +100,9 @@ int main(void)
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
+  MX_DAC3_Init();
+  MX_OPAMP1_Init();
+  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
   app_main();
   /* USER CODE END 2 */
