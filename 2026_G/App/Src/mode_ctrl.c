@@ -7,7 +7,7 @@
 
 volatile SystemMode_t g_mode = MODE_IDLE;
 
-#define MODE_UPDATE_PERIOD_MS  200U
+#define MODE_UPDATE_PERIOD_MS  1000U
 
 void Mode_Init(void)
 {
@@ -16,6 +16,7 @@ void Mode_Init(void)
 
 void Mode_OnButton(uint8_t data)
 {
+    SystemMode_t prev = g_mode;
     if (data == BTN_DATA_WAVE)
         g_mode = MODE_WAVEFORM;
     if (data == BTN_DATA_SPEC)
@@ -23,9 +24,17 @@ void Mode_OnButton(uint8_t data)
     if (data == 0xA3)
         g_mode = MODE_IDLE;
     if (data == 0xA4)
-        g_tft_data.flag = 1; /*校准开启*/
+        g_tft_data.flag = 1;
     if (data == 0xA5)
-        g_tft_data.measure = 1; /*测量开始*/
+        g_tft_data.measure = 1;
+
+    /* FIX: on mode switch, flag data for re-draw.
+     *      wave_updated / spec_updated are one-shot flags consumed
+     *      on first draw; switching away & back needs a re-trigger. */
+    if (g_mode != prev) {
+        if (g_mode == MODE_WAVEFORM)  g_tft_data.wave_updated = 1;
+        if (g_mode == MODE_SPECTRUM)  g_tft_data.spec_updated = 1;
+    }
 }
 
 static void Mode_Waveform_Run(void)
@@ -52,25 +61,33 @@ static void Mode_Waveform_Run(void)
 
 static void Mode_Spectrum_Run(void)
 {
-    uint8_t text_update = g_tft_data.spec_updated;
-
-    if (g_tft_data.sp_count > 0U) {
-        Curve_DrawSpectrumBars(SCR_SPECTRUM,
-                               g_tft_data.sp_freq_val,
-                               g_tft_data.sp_amp_val,
-                               g_tft_data.sp_count);
-    }
-
-    if (!text_update)
+    if (!g_tft_data.spec_updated)
         return;
     g_tft_data.spec_updated = 0;
 
+    /* Teammate logic: switch to spectrum page first; FillRect draws on current page. */
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ0, g_tft_data.sp_freq[0]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP0, g_tft_data.sp_amp[0]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ1, g_tft_data.sp_freq[1]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP1, g_tft_data.sp_amp[1]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ2, g_tft_data.sp_freq[2]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP2, g_tft_data.sp_amp[2]);
+
+    Curve_DrawSpectrumBars(SCR_SPECTRUM,
+                           g_tft_data.sp_freq_val,
+                           g_tft_data.sp_amp_val,
+                           g_tft_data.sp_count);
+
+#if 0
+    /* Previous workaround: periodic redraw for raw FillRect drawings.
+     * Disabled because the teammate page-switch-before-draw logic is enough. */
+    if (g_tft_data.sp_count > 0U) {
+        Curve_DrawSpectrumBars(SCR_SPECTRUM,
+                               g_tft_data.sp_freq_val,
+                               g_tft_data.sp_amp_val,
+                               g_tft_data.sp_count);
+    }
+#endif
 }
 
 void Mode_Update(void)
