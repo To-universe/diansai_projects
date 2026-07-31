@@ -201,7 +201,7 @@ void calibration_start(void){
     __HAL_TIM_CLEAR_FLAG(&htim6, TIM_FLAG_UPDATE);
     __HAL_TIM_SET_COUNTER(&htim6, 0U);
 
-    hdac3.ErrorCode = HAL_DAC_ERROR_NONE;
+    hdac2.ErrorCode = HAL_DAC_ERROR_NONE;
 
 
     // HAL_DAC_SetValue(&hdac2, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048);
@@ -263,9 +263,13 @@ void calibration_start(void){
     voltage_set_sample_to_volt(g_sample_cal_to_volt);
 
     HAL_TIM_Base_Stop(&htim6);
+<<<<<<< HEAD
 
     /* FIX: stop calibration DAC after calibration (use hdac3, not hdac2) */
     HAL_TIM_Base_Stop(&htim6);
     HAL_DAC_Stop_DMA(&hdac3, DAC_CHANNEL_1);
+=======
+    HAL_DAC_Stop_DMA(&hdac2, DAC_CHANNEL_1);
+>>>>>>> 02fdf8370943a4076b852d335119699446b64190
 }
 

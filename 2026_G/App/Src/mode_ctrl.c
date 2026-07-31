@@ -14,6 +14,7 @@ void Mode_Init(void)
 
 void Mode_OnButton(uint8_t data)
 {
+    SystemMode_t prev = g_mode;
     if (data == BTN_DATA_WAVE)
         g_mode = MODE_WAVEFORM;
     if (data == BTN_DATA_SPEC)
@@ -21,9 +22,17 @@ void Mode_OnButton(uint8_t data)
     if (data == 0xA3)
         g_mode = MODE_IDLE;
     if (data == 0xA4)
-        g_tft_data.flag = 1; /*校准开启*/
+        g_tft_data.flag = 1;
     if (data == 0xA5)
-        g_tft_data.measure = 1; /*测量开始*/
+        g_tft_data.measure = 1;
+
+    /* FIX: on mode switch, flag data for re-draw.
+     *      wave_updated / spec_updated are one-shot flags consumed
+     *      on first draw; switching away & back needs a re-trigger. */
+    if (g_mode != prev) {
+        if (g_mode == MODE_WAVEFORM)  g_tft_data.wave_updated = 1;
+        if (g_mode == MODE_SPECTRUM)  g_tft_data.spec_updated = 1;
+    }
 }
 
 static void Mode_Waveform_Run(void)
@@ -54,17 +63,20 @@ static void Mode_Spectrum_Run(void)
         return;
     g_tft_data.spec_updated = 0;
 
-    Curve_DrawSpectrumBars(SCR_SPECTRUM,
-                           g_tft_data.sp_freq_val,
-                           g_tft_data.sp_amp_val,
-                           g_tft_data.sp_count);
-
+    /* FIX: switch to spectrum page FIRST, then draw bars.
+     *      FillRect has no screen-ID field, draws on current page.
+     *      LCD_SetTextEx with SCR_SPECTRUM switches LCD to page 3 first. */
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ0, g_tft_data.sp_freq[0]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP0, g_tft_data.sp_amp[0]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ1, g_tft_data.sp_freq[1]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP1, g_tft_data.sp_amp[1]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ2, g_tft_data.sp_freq[2]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP2, g_tft_data.sp_amp[2]);
+
+    Curve_DrawSpectrumBars(SCR_SPECTRUM,
+                           g_tft_data.sp_freq_val,
+                           g_tft_data.sp_amp_val,
+                           g_tft_data.sp_count);
 }
 
 void Mode_Update(void)
