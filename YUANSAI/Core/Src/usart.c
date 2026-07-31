@@ -179,8 +179,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
   /* USER CODE BEGIN USART2_MspInit 1 */
 
   /* USER CODE END USART2_MspInit 1 */
-  }
-}
+  }  }
 
 void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 {
