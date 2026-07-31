@@ -306,7 +306,7 @@ static void show(app_ctx_t *ctx)
 
 void state_display(app_ctx_t* ctx){
     Data_Feed_Waveform(ctx->waveform_u8, ctx->waveform_3_cycles_u8,(float)ctx->vpp_mean, (float)ctx->vrms_mean, ctx->f0);
-    Data_Feed_Spectrum((float)ctx->harmonic_means[0],ctx->harmonic_orders[1], (float32_t)ctx->harmonic_means[1],ctx->harmonic_orders[2],(float)ctx->harmonic_means[2], ctx->harmonic_order_count,(float)ctx->f0);
+    Data_Feed_Spectrum((float)ctx->harmonic_means[0],ctx->harmonic_orders[1], (float32_t)ctx->harmonic_means[1],ctx->harmonic_orders[2],(float)ctx->harmonic_means[2], ctx->harmonic_order_count,(float)ctx->f0_used);
 
 }
 
@@ -344,12 +344,15 @@ void update_state(app_ctx_t* ctx){
 void update_state(app_ctx_t* ctx){
     switch (ctx->state) {
         case STATE_IDLE:
-            if (1
-                // g_tft_data.flag == 1
+            if (
+                g_tft_data.flag == 1
             ) {
                 ctx->state = STATE_CALIBRATING;
             } else if (g_tft_data.measure == 1) {
                 ctx->state = STATE_MEASURE;
+            }
+            else{
+                ctx->state = STATE_IDLE;
             }
             break;
         case STATE_CALIBRATING:
@@ -379,12 +382,12 @@ void state_act(app_ctx_t* ctx){
             calibration_start();
 
 
-            LCD_SetTextEx(0, 7, "\xD0\xA3\xD1\xE9\xCD\xEA\xB3\xC9");
+            LCD_SetTextEx(0, 11, "\xD0\xA3\xD1\xE9\xCD\xEA\xB3\xC9");
             g_tft_data.flag = 0;  /*校准完成*/
             break;
         case STATE_MEASURE:
             state_calculation(ctx);
-            LCD_SetTextEx(0, 7, "\xB2\xE2\xC1\xBF\xCD\xEA\xB3\xC9");
+            LCD_SetTextEx(0, 13, "\xB2\xE2\xC1\xBF\xCD\xEA\xB3\xC9");
             g_tft_data.measure = 0;  /*测量完成*/
             break;
         case STATE_DISPLAY:
