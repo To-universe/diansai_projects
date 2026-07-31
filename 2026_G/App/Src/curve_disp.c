@@ -31,13 +31,6 @@ void Curve_DrawSpectrumBars(uint8_t screen,
 {
     (void)screen;
 
-    /* erase previous bars (white) */
-    if (prev_cnt > 0) {
-        SetColor(0xFFFF);  /* white = background */
-        for (uint8_t i = 0; i < prev_cnt; i++)
-            FillRect(prev_x[i], prev_y[i], 20, prev_h[i]);
-    }
-
     if (count < 1 || count > 3) { prev_cnt = 0; return; }
 
     const uint16_t BASE_Y  = 540;
@@ -54,16 +47,31 @@ void Curve_DrawSpectrumBars(uint8_t screen,
     }
     if (max_amp < 0.001f || max_freq == 0) { prev_cnt = 0; return; }
 
-    /* draw new bars (light blue) */
-    SetColor(0x07FF);
+    uint16_t new_x[3], new_y[3], new_h[3];
+    uint8_t changed = (prev_cnt != count);
     for (uint8_t i = 0; i < count; i++) {
         uint16_t x = X_START + (uint16_t)((float)freq[i] / (float)max_freq * X_RANGE);
         uint16_t h = (uint16_t)(amp[i] / max_amp * MAX_H);
         if (h < 1) h = 1;
         uint16_t y = BASE_Y - h;
 
-        prev_x[i] = x; prev_y[i] = y; prev_h[i] = h;
-        FillRect(x, y, BAR_W, h);
+        new_x[i] = x; new_y[i] = y; new_h[i] = h;
+        if (!changed && (x != prev_x[i] || y != prev_y[i] || h != prev_h[i])) {
+            changed = 1U;
+        }
+    }
+
+    if (changed && prev_cnt > 0) {
+        SetColor(0xFFFF);  /* white = background */
+        for (uint8_t i = 0; i < prev_cnt; i++)
+            FillRect(prev_x[i], prev_y[i], 20, prev_h[i]);
+    }
+
+    /* draw current bars every time; raw drawings can be cleared by page refresh */
+    SetColor(0x07FF);
+    for (uint8_t i = 0; i < count; i++) {
+        prev_x[i] = new_x[i]; prev_y[i] = new_y[i]; prev_h[i] = new_h[i];
+        FillRect(new_x[i], new_y[i], BAR_W, new_h[i]);
     }
     prev_cnt = count;
 }

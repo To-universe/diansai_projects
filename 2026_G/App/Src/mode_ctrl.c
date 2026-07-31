@@ -7,6 +7,8 @@
 
 volatile SystemMode_t g_mode = MODE_IDLE;
 
+#define MODE_UPDATE_PERIOD_MS  200U
+
 void Mode_Init(void)
 {
     g_mode = MODE_IDLE;
@@ -50,14 +52,18 @@ static void Mode_Waveform_Run(void)
 
 static void Mode_Spectrum_Run(void)
 {
-    if (!g_tft_data.spec_updated)
+    uint8_t text_update = g_tft_data.spec_updated;
+
+    if (g_tft_data.sp_count > 0U) {
+        Curve_DrawSpectrumBars(SCR_SPECTRUM,
+                               g_tft_data.sp_freq_val,
+                               g_tft_data.sp_amp_val,
+                               g_tft_data.sp_count);
+    }
+
+    if (!text_update)
         return;
     g_tft_data.spec_updated = 0;
-
-    Curve_DrawSpectrumBars(SCR_SPECTRUM,
-                           g_tft_data.sp_freq_val,
-                           g_tft_data.sp_amp_val,
-                           g_tft_data.sp_count);
 
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_FREQ0, g_tft_data.sp_freq[0]);
     LCD_SetTextEx(SCR_SPECTRUM, CTRL_SP_AMP0, g_tft_data.sp_amp[0]);
@@ -72,7 +78,7 @@ void Mode_Update(void)
     static uint32_t last = 0;
     if (last == 0)
         last = HAL_GetTick();
-    if (HAL_GetTick() - last < 1000)
+    if (HAL_GetTick() - last < MODE_UPDATE_PERIOD_MS)
         return;
     last = HAL_GetTick();
 
