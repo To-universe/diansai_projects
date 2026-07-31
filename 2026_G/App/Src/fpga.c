@@ -23,7 +23,7 @@ void fpga_start_capture(void)
     tx_buffer[0] = 0x07;
     tx_buffer[1] = 12;
 
-    if (HAL_SPI_Transmit(&hspi1, tx_buffer, 2, 1000) != HAL_OK) {
+    if (HAL_SPI_Transmit(&hspi2, tx_buffer, 2, 1000) != HAL_OK) {
         Error_Handler();
     }
 }
@@ -50,7 +50,7 @@ uint8_t fpga_receive(void)
 
     data_ready = 0U;
 
-    if (HAL_SPI_Receive(&hspi1, rx_buffer, rx_size, 5000) != HAL_OK) {
+    if (HAL_SPI_Receive(&hspi2, rx_buffer, rx_size, 5000) != HAL_OK) {
         Error_Handler();
         return 0U;
     }

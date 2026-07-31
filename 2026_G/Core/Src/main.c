@@ -97,12 +97,13 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   MX_UART5_Init();
-  MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_USART3_UART_Init();
   MX_DAC3_Init();
   MX_OPAMP1_Init();
   MX_TIM6_Init();
+  MX_DAC2_Init();
+  MX_SPI2_Init();
   /* USER CODE BEGIN 2 */
   app_main();
   /* USER CODE END 2 */

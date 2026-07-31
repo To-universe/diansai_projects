@@ -15,7 +15,10 @@ extern uint16_t dac3_sine_10k_200mvpp_lut[DAC_SINE_10K_POINTS];
 
 #define DAC_SINE_10K_4M_SAMPLE_RATE_HZ  4000000U
 #define DAC_SINE_10K_400_POINTS         400U
+#define DAC_SINE_10K_1500MVPP_MV        1500U
+#define DAC_SINE_10K_1500MVPP_AMP_CODE  931U
 
 extern uint16_t dac3_sine_10k_200mvpp_400pt_lut[DAC_SINE_10K_400_POINTS];
+extern uint16_t dac3_sine_10k_1500mvpp_400pt_lut[DAC_SINE_10K_400_POINTS];
 
 #endif

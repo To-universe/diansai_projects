@@ -21,7 +21,7 @@ void LCD_Init(void) {
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
     if (huart->Instance != USART3) return;
     uint8_t b = rx_byte;
-    if (b == 0xA1 || b == 0xA2 || b == 0xA3) {
+    if (b == 0xA1 || b == 0xA2 || b == 0xA3 || b == 0xA4 || b == 0xA5) {
         if (btn_cnt < BTN_BUF_SIZE) {
             btn_buf[btn_wr] = b;
             btn_wr = (btn_wr + 1) % BTN_BUF_SIZE;
@@ -49,6 +49,11 @@ void LCD_SetTextEx(uint8_t scr, uint8_t ctrl, const char *s) {
     memcpy(buf + p, s, len); p += len;
     buf[p++] = 0xFF; buf[p++] = 0xFC; buf[p++] = 0xFF; buf[p++] = 0xFF;
     u3_send(buf, p);
+}
+
+void LCD_ClearText(uint8_t scr, uint8_t ctrl) {
+    uint8_t c[] = {0xEE,0xB1,0x10, 0x00,scr, 0x00,ctrl, 0xFF,0xFC,0xFF,0xFF};
+    u3_send(c, sizeof(c));
 }
 
 void LCD_Curve_Clear(uint8_t scr, uint8_t ctrl, uint8_t ch) {

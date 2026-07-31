@@ -57,11 +57,11 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define FPGA_IRQN_Pin GPIO_PIN_3
-#define FPGA_IRQN_GPIO_Port GPIOA
-#define FPGA_IRQN_EXTI_IRQn EXTI3_IRQn
-#define FPGA_RSTN_Pin GPIO_PIN_4
-#define FPGA_RSTN_GPIO_Port GPIOC
+#define FPGA_IRQN_Pin GPIO_PIN_11
+#define FPGA_IRQN_GPIO_Port GPIOB
+#define FPGA_IRQN_EXTI_IRQn EXTI15_10_IRQn
+#define FPGA_RSTN_Pin GPIO_PIN_8
+#define FPGA_RSTN_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 

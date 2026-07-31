@@ -136,7 +136,7 @@ static void process_input(app_ctx_t *ctx)
     }
 }
 
-static void waveform_to_screen_q7(const float32_t *src, uint8_t *dst, uint16_t len)
+static void waveform_to_screen_u8(const float32_t *src, uint8_t *dst, uint16_t len)
 {
     if (len == 0U) {
         return;
@@ -156,7 +156,7 @@ static void waveform_to_screen_q7(const float32_t *src, uint8_t *dst, uint16_t l
     float32_t center = 0.5f * (max_v + min_v);
     float32_t half_range = 0.5f * (max_v - min_v);
     if (half_range < 1.0e-9f) {
-        memset(dst, 0, len);
+        memset(dst, 128, len);
         return;
     }
 
@@ -168,14 +168,14 @@ static void waveform_to_screen_q7(const float32_t *src, uint8_t *dst, uint16_t l
             norm = -1.0f;
         }
 
-        float32_t scaled = (norm >= 0.0f) ? (norm * 127.0f) : (norm * 128.0f);
-        int32_t q = (scaled >= 0.0f) ? (int32_t)(scaled + 0.5f) : (int32_t)(scaled - 0.5f);
-        if (q > 127) {
-            q = 127;
-        } else if (q < -128) {
-            q = -128;
+        float32_t scaled = (norm + 1.0f) * 127.5f;
+        int32_t q = (int32_t)(scaled + 0.5f);
+        if (q > 255) {
+            q = 255;
+        } else if (q < 0) {
+            q = 0;
         }
-        dst[k] = (uint8_t)((int8_t)q);
+        dst[k] = (uint8_t)q;
     }
 }
 
@@ -233,8 +233,8 @@ static void state_calculation(app_ctx_t *ctx)
         uint16_t idx = (3*k)%WAVEFORM_SIZE;
         ctx->waveform_3_cycles[k] = waveform_mean[idx];
     }
-    waveform_to_screen_q7(ctx->waveform, ctx->waveform_u8, WAVEFORM_SIZE);
-    waveform_to_screen_q7(ctx->waveform_3_cycles, ctx->waveform_3_cycles_u8, WAVEFORM_SIZE);
+    waveform_to_screen_u8(ctx->waveform, ctx->waveform_u8, WAVEFORM_SIZE);
+    waveform_to_screen_u8(ctx->waveform_3_cycles, ctx->waveform_3_cycles_u8, WAVEFORM_SIZE);
     ctx->display_ready = true;
 
     calc_init(&ctx->acc);
@@ -380,14 +380,20 @@ void state_act(app_ctx_t* ctx){
             //加入校准相关代码
             
             calibration_start();
-
+            // HAL_Delay(1000);
 
             LCD_SetTextEx(0, 11, "\xD0\xA3\xD1\xE9\xCD\xEA\xB3\xC9");
+            HAL_Delay(2000);
+            LCD_ClearText(0,11);
+            
             g_tft_data.flag = 0;  /*校准完成*/
             break;
         case STATE_MEASURE:
             state_calculation(ctx);
             LCD_SetTextEx(0, 13, "\xB2\xE2\xC1\xBF\xCD\xEA\xB3\xC9");
+            HAL_Delay(2000);
+            LCD_ClearText(0,13);
+
             g_tft_data.measure = 0;  /*测量完成*/
             break;
         case STATE_DISPLAY:
@@ -416,15 +422,15 @@ void app_main(void)
 
     // HAL_OPAMP_Start(&huart5);
     // HAL_DAC_Start_DMA(&, uint32_t Channel, const uint32_t *pData, uint32_t Length, uint32_t Alignment)
-
     while (1) {
         // process_input(&ctx);
         // state_calculation(&ctx);
         // show(&ctx);
-        update_state(&ctx);
-        state_act(&ctx);
+        
 
         Mode_OnButton(LCD_PollBtn());
+        update_state(&ctx);
+        state_act(&ctx);
         Mode_Update();
         
         HAL_Delay(50);
