@@ -99,9 +99,6 @@ void HAL_DAC_MspInit(DAC_HandleTypeDef* dacHandle)
 
     __HAL_LINKDMA(dacHandle,DMA_Handle1,hdma_dac3_ch1);
 
-    /* DAC3 interrupt Init */
-    HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   /* USER CODE BEGIN DAC3_MspInit 1 */
 
   /* USER CODE END DAC3_MspInit 1 */
@@ -121,16 +118,6 @@ void HAL_DAC_MspDeInit(DAC_HandleTypeDef* dacHandle)
 
     /* DAC3 DMA DeInit */
     HAL_DMA_DeInit(dacHandle->DMA_Handle1);
-
-    /* DAC3 interrupt Deinit */
-  /* USER CODE BEGIN DAC3:TIM6_DAC_IRQn disable */
-    /**
-    * Uncomment the line below to disable the "TIM6_DAC_IRQn" interrupt
-    * Be aware, disabling shared interrupt may affect other IPs
-    */
-    /* HAL_NVIC_DisableIRQ(TIM6_DAC_IRQn); */
-  /* USER CODE END DAC3:TIM6_DAC_IRQn disable */
-
   /* USER CODE BEGIN DAC3_MspDeInit 1 */
 
   /* USER CODE END DAC3_MspDeInit 1 */
